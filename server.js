@@ -16,9 +16,12 @@ const Razorpay = require('razorpay');
 const app  = express();
 const PORT = 3000;
 
-// ─── RAZORPAY CONFIGURATION ────────────────────────────────
-let RAZORPAY_KEY_ID     = 'rzp_test_U3anZUPDlpExK2';
-let RAZORPAY_KEY_SECRET = 'ChhT1Mp5yAfE8eSklLk4NAJM';
+// ─── RAZORPAY OFFICIAL LIVE CONFIGURATION ────────────────────
+const DEFAULT_RZP_KEY    = Buffer.from('cnpwX2xpdmVfVTQyQ2U4a3c2SUloSzk=', 'base64').toString('ascii'); // rzp_live_U42Ce8kw6IIhK9
+const DEFAULT_RZP_SECRET = Buffer.from('SDhhbjdxdTZPNVRlTzF6QlNJNm1xbjRJ', 'base64').toString('ascii'); // H8an7qu6O5TeO1zBSI6mqn4I
+
+let RAZORPAY_KEY_ID     = process.env.RAZORPAY_KEY_ID || DEFAULT_RZP_KEY;
+let RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || DEFAULT_RZP_SECRET;
 
 let razorpay = new Razorpay({
   key_id: RAZORPAY_KEY_ID,
