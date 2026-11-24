@@ -255,5 +255,8 @@
     "default_card_litres": 1,
     "razorpay_key_id": "rzp_test_U3anZUPDlpExK2"
   },
-  "pending_orders": []
+  "pending_orders": [],
+  "cashback_wallets": {
+    "6d0324fb-094c-463a-80ba-87753ee08adc": 0
+  }
 }
