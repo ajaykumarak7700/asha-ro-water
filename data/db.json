@@ -11,9 +11,31 @@
     }
   ],
   "wallets": {
-    "6d0324fb-094c-463a-80ba-87753ee08adc": 47900
+    "6d0324fb-094c-463a-80ba-87753ee08adc": 47700
   },
   "transactions": [
+    {
+      "id": "DSP_7A6AB92C",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "customer_name": "AJAY KUSHWAHA",
+      "card_uid": "9E 52 FD 03",
+      "type": "DISPENSE",
+      "amount_paise": 100,
+      "note": "1 Liter Dispensed",
+      "payment_ref": "DSP_7A6AB92C",
+      "created_at": "24/11/2026, 3:49:06 pm"
+    },
+    {
+      "id": "DSP_D3E33B48",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "customer_name": "AJAY KUSHWAHA",
+      "card_uid": "9E 52 FD 03",
+      "type": "DISPENSE",
+      "amount_paise": 100,
+      "note": "1 Liter Dispensed",
+      "payment_ref": "DSP_D3E33B48",
+      "created_at": "24/11/2026, 3:48:57 pm"
+    },
     {
       "id": "DSP_F6F9B719",
       "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",

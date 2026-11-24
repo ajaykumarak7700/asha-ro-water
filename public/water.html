@@ -2,250 +2,410 @@
 <html lang="hi">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ASHA RO WATER — Instant UPI Paani Dispense</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asha RO Water — Smart Automated Water ATM & Pure Drinking Water</title>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-  body {
-    background: linear-gradient(135deg, #091e3a 0%, #173f73 50%, #0072ff 100%);
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px;
-    color: #1e293b;
+  :root {
+    --primary: #0284c7;
+    --primary-dark: #0369a1;
+    --secondary: #0ea5e9;
+    --accent: #10b981;
+    --dark: #0f172a;
+    --light: #f8fafc;
+    --gray: #64748b;
+    --card-bg: #ffffff;
+    --border: #e2e8f0;
   }
-  .container {
-    background: #ffffff;
-    width: 100%;
-    max-width: 420px;
-    border-radius: 24px;
-    box-shadow: 0 25px 60px rgba(0,0,0,0.3);
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; }
+  body { background: #f8fafc; color: var(--dark); line-height: 1.6; overflow-x: hidden; }
+
+  /* ── NAVBAR ── */
+  .navbar {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 1200px; margin: 0 auto;
+  }
+  .nav-brand {
+    display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--dark);
+  }
+  .brand-logo {
+    width: 42px; height: 42px; background: linear-gradient(135deg, #0284c7, #38bdf8);
+    border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; color: #fff; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+  }
+  .brand-text h1 { font-size: 19px; font-weight: 800; color: #0369a1; line-height: 1.1; }
+  .brand-text span { font-size: 11px; color: var(--gray); font-weight: 600; letter-spacing: 0.5px; }
+
+  .nav-menu { display: flex; align-items: center; gap: 20px; list-style: none; }
+  .nav-menu a { text-decoration: none; color: var(--gray); font-weight: 600; font-size: 14px; transition: color 0.2s; }
+  .nav-menu a:hover { color: var(--primary); }
+  .btn-nav-admin {
+    background: #f1f5f9; color: #0369a1; padding: 8px 16px; border-radius: 20px;
+    font-size: 13px; font-weight: 700; border: 1px solid #cbd5e1; text-decoration: none;
+    transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+  }
+  .btn-nav-admin:hover { background: #0369a1; color: #fff; border-color: #0369a1; }
+
+  /* ── HERO SECTION ── */
+  .hero {
+    background: linear-gradient(135deg, #075985 0%, #0284c7 50%, #38bdf8 100%);
+    color: #fff; padding: 80px 24px 90px; text-align: center; position: relative;
     overflow: hidden;
   }
-  .header {
-    background: linear-gradient(135deg, #0052cc, #0099ff);
-    color: #fff;
-    padding: 24px 20px;
-    text-align: center;
+  .hero::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 30px;
+    background: #f8fafc; clip-path: ellipse(55% 100% at 50% 100%);
   }
-  .header h1 {
-    font-size: 24px;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255, 255, 255, 0.18); backdrop-filter: blur(8px);
+    padding: 6px 16px; border-radius: 30px; font-size: 13px; font-weight: 700;
+    margin-bottom: 20px; border: 1px solid rgba(255, 255, 255, 0.25);
   }
-  .header p {
-    font-size: 13px;
-    opacity: 0.9;
-    margin-top: 4px;
+  .hero h2 { font-size: 42px; font-weight: 800; max-width: 800px; margin: 0 auto 16px; line-height: 1.2; letter-spacing: -0.5px; }
+  .hero p { font-size: 17px; max-width: 650px; margin: 0 auto 30px; opacity: 0.95; line-height: 1.6; }
+  .hero-buttons { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+  .btn-hero-primary {
+    background: #fff; color: #0284c7; padding: 14px 28px; border-radius: 14px;
+    font-size: 16px; font-weight: 800; text-decoration: none; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    transition: transform 0.2s; display: inline-flex; align-items: center; gap: 8px;
   }
-  .content {
-    padding: 24px 20px;
+  .btn-hero-primary:hover { transform: translateY(-2px); }
+  .btn-hero-secondary {
+    background: rgba(255,255,255,0.15); color: #fff; padding: 14px 28px; border-radius: 14px;
+    font-size: 16px; font-weight: 700; text-decoration: none; border: 1px solid rgba(255,255,255,0.4);
+    display: inline-flex; align-items: center; gap: 8px;
   }
-  .tagline {
-    text-align: center;
-    font-size: 14px;
-    font-weight: 600;
-    color: #475569;
-    margin-bottom: 20px;
+
+  /* ── STATS / HIGHLIGHTS ── */
+  .stats-bar {
+    max-width: 1100px; margin: -40px auto 50px; padding: 0 20px; position: relative; z-index: 10;
   }
-  .options-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-    margin-bottom: 20px;
+  .stats-grid {
+    background: #fff; border-radius: 20px; padding: 24px;
+    box-shadow: 0 15px 35px rgba(15, 23, 42, 0.08); border: 1px solid var(--border);
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center;
   }
+  .stat-item h3 { font-size: 26px; font-weight: 800; color: #0284c7; margin-bottom: 4px; }
+  .stat-item p { font-size: 13px; color: var(--gray); font-weight: 600; }
+
+  /* ── SECTIONS ── */
+  .section-container { max-width: 1100px; margin: 60px auto; padding: 0 24px; }
+  .section-header { text-align: center; margin-bottom: 40px; }
+  .section-header span { font-size: 13px; font-weight: 800; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; }
+  .section-header h2 { font-size: 32px; font-weight: 800; color: var(--dark); margin-top: 6px; }
+  .section-header p { font-size: 15px; color: var(--gray); max-width: 600px; margin: 8px auto 0; }
+
+  /* ── FEATURE CARDS ── */
+  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .feature-card {
+    background: #fff; border-radius: 18px; padding: 30px 24px; border: 1px solid var(--border);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.03); transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .feature-card:hover { transform: translateY(-4px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); }
+  .feat-icon {
+    width: 50px; height: 50px; border-radius: 12px; background: #e0f2fe; color: #0284c7;
+    display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 16px;
+  }
+  .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--dark); }
+  .feature-card p { font-size: 14px; color: var(--gray); line-height: 1.5; }
+
+  /* ── INTERACTIVE DISPENSER SECTION ── */
+  .dispenser-box {
+    background: #ffffff; border-radius: 24px; border: 1px solid var(--border);
+    box-shadow: 0 20px 50px rgba(2, 132, 199, 0.08); overflow: hidden;
+    display: grid; grid-template-columns: 1.1fr 1fr; margin-top: 30px;
+  }
+  .dispenser-info { padding: 45px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); display: flex; flex-direction: column; justify-content: center; }
+  .dispenser-info h3 { font-size: 28px; font-weight: 800; color: #0369a1; margin-bottom: 12px; }
+  .dispenser-info p { font-size: 15px; color: #475569; margin-bottom: 24px; line-height: 1.6; }
+  .dispenser-steps { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+  .dispenser-steps li { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; color: #1e293b; }
+  .step-num { width: 26px; height: 26px; border-radius: 50%; background: #0284c7; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0; }
+
+  .dispenser-widget { padding: 40px; display: flex; flex-direction: column; justify-content: center; }
+  .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
   .opt-card {
-    border: 2px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 18px 12px;
-    text-align: center;
-    cursor: pointer;
-    background: #f8fafc;
-    transition: all 0.2s ease;
+    border: 2px solid var(--border); border-radius: 16px; padding: 18px 12px; text-align: center;
+    cursor: pointer; background: #f8fafc; transition: all 0.2s;
   }
   .opt-card:hover, .opt-card.selected {
-    border-color: #0072ff;
-    background: #eff6ff;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 114, 255, 0.15);
+    border-color: #0284c7; background: #f0f9ff; transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(2, 132, 199, 0.12);
   }
-  .opt-litres {
-    font-size: 26px;
-    font-weight: 800;
-    color: #0052cc;
-  }
-  .opt-price {
-    font-size: 16px;
-    font-weight: 700;
-    color: #057a55;
-    margin-top: 4px;
-  }
-  .opt-sub {
-    font-size: 11px;
-    color: #64748b;
-    margin-top: 2px;
-  }
+  .opt-litres { font-size: 28px; font-weight: 800; color: #0284c7; }
+  .opt-price { font-size: 16px; font-weight: 700; color: #059669; margin-top: 4px; }
+  .opt-sub { font-size: 11px; color: var(--gray); margin-top: 2px; }
+  
   .custom-row {
-    background: #f1f5f9;
-    border-radius: 12px;
-    padding: 12px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
+    background: #f1f5f9; border-radius: 12px; padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
   }
-  .custom-row label {
-    font-size: 13px;
-    font-weight: 600;
-    color: #475569;
-  }
+  .custom-row label { font-size: 13px; font-weight: 700; color: #475569; }
   .custom-row input {
-    width: 90px;
-    padding: 8px 10px;
-    border: 1px solid #cbd5e1;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: 700;
-    text-align: center;
-    color: #0f172a;
-    outline: none;
+    width: 90px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px;
+    font-size: 16px; font-weight: 800; text-align: center; color: #0f172a; outline: none;
   }
+
   .pay-btn {
-    width: 100%;
-    background: linear-gradient(135deg, #057a55, #0e9f6e);
-    color: #ffffff;
-    border: none;
-    border-radius: 16px;
-    padding: 16px;
-    font-size: 18px;
-    font-weight: 800;
-    cursor: pointer;
-    box-shadow: 0 10px 25px rgba(5, 122, 85, 0.35);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    transition: all 0.2s;
+    width: 100%; background: linear-gradient(135deg, #059669, #10b981); color: #ffffff;
+    border: none; border-radius: 14px; padding: 16px; font-size: 17px; font-weight: 800;
+    cursor: pointer; box-shadow: 0 10px 25px rgba(5, 150, 105, 0.3);
+    display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s;
   }
-  .pay-btn:hover {
-    background: linear-gradient(135deg, #046c4e, #057a55);
-    transform: translateY(-1px);
-  }
+  .pay-btn:hover { background: linear-gradient(135deg, #047857, #059669); transform: translateY(-1px); }
   .upi-badges {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    margin-top: 16px;
-    font-size: 12px;
-    color: #64748b;
-    font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px;
+    font-size: 11px; color: var(--gray); font-weight: 600; flex-wrap: wrap;
   }
-  .badge {
-    background: #f1f5f9;
-    padding: 4px 10px;
-    border-radius: 6px;
-    border: 1px solid #e2e8f0;
-  }
+  .badge { background: #f1f5f9; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; }
+
   .status-box {
-    margin-top: 16px;
-    padding: 14px;
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: 600;
-    text-align: center;
-    display: none;
+    margin-top: 16px; padding: 14px; border-radius: 12px; font-size: 14px; font-weight: 600;
+    text-align: center; display: none;
   }
   .status-info { background: #e0f2fe; color: #0369a1; display: block; }
   .status-success { background: #def7ec; color: #03543f; display: block; }
   .status-error { background: #fde8e8; color: #9b1c1c; display: block; }
-  .pulse {
-    animation: pulse 1.5s infinite;
-  }
-  @keyframes pulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.02); }
-    100% { transform: scale(1); }
-  }
+
+  /* ── FOOTER ── */
   .footer {
-    text-align: center;
-    padding: 16px;
-    font-size: 11px;
-    color: #94a3b8;
-    border-top: 1px solid #f1f5f9;
+    background: #0f172a; color: #94a3b8; padding: 60px 24px 30px; margin-top: 80px;
+  }
+  .footer-grid {
+    max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 30px; margin-bottom: 40px;
+  }
+  .footer-col h4 { color: #fff; font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+  .footer-col p { font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
+  .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .footer-col ul a { color: #94a3b8; text-decoration: none; font-size: 13px; transition: color 0.2s; }
+  .footer-col ul a:hover { color: #38bdf8; }
+  .footer-bottom {
+    max-width: 1100px; margin: 0 auto; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);
+    display: flex; justify-content: space-between; align-items: center; font-size: 12px; flex-wrap: wrap; gap: 10px;
+  }
+
+  @media(max-width: 900px) {
+    .hero h2 { font-size: 30px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .features-grid { grid-template-columns: 1fr; }
+    .dispenser-box { grid-template-columns: 1fr; }
+    .footer-grid { grid-template-columns: 1fr 1fr; }
+    .nav-menu { display: none; }
   }
 </style>
 </head>
 <body>
 
-<div class="container">
-  <div class="header" style="position: relative;">
-    <a href="/admin" onclick="return handleAdminLogin(event)" style="position: absolute; top: 12px; right: 14px; background: rgba(255,255,255,0.22); color: #fff; padding: 4px 10px; border-radius: 20px; font-size: 11px; text-decoration: none; font-weight: 700; border: 1px solid rgba(255,255,255,0.35);">🔐 Admin</a>
-    <h1>🚰 ASHA RO WATER</h1>
-    <p>Smart Automatic Water ATM • Pure Drinking Water</p>
+<!-- NAVBAR -->
+<nav class="navbar">
+  <a href="/" class="nav-brand">
+    <div class="brand-logo">🚰</div>
+    <div class="brand-text">
+      <h1>ASHA RO WATER</h1>
+      <span>SMART WATER ATM • BANWARIYA</span>
+    </div>
+  </a>
+  <ul class="nav-menu">
+    <li><a href="#dispenser">Dispenser</a></li>
+    <li><a href="#features">Purity Standards</a></li>
+    <li><a href="/about">About Us</a></li>
+    <li><a href="/contact">Contact</a></li>
+  </ul>
+  <a href="/admin" onclick="return handleAdminLogin(event)" class="btn-nav-admin">
+    <span>🔐</span> Admin Portal
+  </a>
+</nav>
+
+<!-- HERO SECTION -->
+<section class="hero">
+  <div class="hero-badge">💧 Industrial Grade Multi-Barrier RO + UV + Minerals</div>
+  <h2>Shuddh & Swasth Peene Ka Paani,<br>Ab 24 Ghante Aapke Dwar Par</h2>
+  <p>Asha RO Water Smart Automated Water ATM brings 100% pure, lab-tested, and mineral-enriched drinking water directly to Banwariya and Kushinagar communities at only ₹1 per Litre.</p>
+  <div class="hero-buttons">
+    <a href="#dispenser" class="btn-hero-primary">🚰 Pani Bharne Ke Liye Pay Karein</a>
+    <a href="/contact" class="btn-hero-secondary">📞 Contact Us</a>
   </div>
+</section>
 
-  <div class="content">
-    <div class="tagline">👉 Paani ki quantity select karein aur UPI se pay karein:</div>
-
-    <div class="options-grid">
-      <div class="opt-card selected" id="card10" onclick="chooseQty(10, 10)">
-        <div class="opt-litres">10L</div>
-        <div class="opt-price">₹10</div>
-        <div class="opt-sub">10 Litre Paani</div>
-      </div>
-      <div class="opt-card" id="card20" onclick="chooseQty(20, 20)">
-        <div class="opt-litres">20L</div>
-        <div class="opt-price">₹20</div>
-        <div class="opt-sub">20 Litre Paani</div>
-      </div>
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stats-grid">
+    <div class="stat-item">
+      <h3>₹1.00</h3>
+      <p>Per Litre Price</p>
     </div>
-
-    <div class="custom-row">
-      <label>Koi aur amount (₹):</label>
-      <input type="number" id="amtInput" value="10" min="5" max="200" oninput="manualAmt()">
+    <div class="stat-item">
+      <h3>24x7</h3>
+      <p>Automated Dispensing</p>
     </div>
-
-    <button class="pay-btn pulse" id="payBtn" onclick="startUPIPayment()">
-      <span>📲 Pay with UPI</span>
-      <span id="btnAmtLabel">(₹10)</span>
-    </button>
-
-    <div class="upi-badges">
-      <span class="badge">Google Pay</span>
-      <span class="badge">PhonePe</span>
-      <span class="badge">Paytm</span>
-      <span class="badge">BHIM</span>
+    <div class="stat-item">
+      <h3>100%</h3>
+      <p>Contactless UPI & Card</p>
     </div>
-
-    <div id="statusBox" class="status-box"></div>
-  </div>
-
-  <div class="footer">
-    ASHA RO WATER — Pure Drinking Water • 24x7 Vending
-    <div style="margin-top: 8px; display: flex; justify-content: center; gap: 10px; font-size: 11px; flex-wrap: wrap;">
-      <a href="/about" style="color: #64748b; text-decoration: none;">💧 About Us</a> •
-      <a href="/contact" style="color: #64748b; text-decoration: none;">📞 Contact</a> •
-      <a href="/terms" style="color: #64748b; text-decoration: none;">📜 Terms</a> •
-      <a href="/privacy" style="color: #64748b; text-decoration: none;">🔒 Privacy</a> •
-      <a href="/refund" style="color: #64748b; text-decoration: none;">💸 Refund</a> •
-      <a href="/delivery" style="color: #64748b; text-decoration: none;">🚚 Delivery</a>
+    <div class="stat-item">
+      <h3>7-Stage</h3>
+      <p>Purification (RO+UV)</p>
     </div>
   </div>
 </div>
 
+<!-- LIVE DISPENSER & STOREFRONT SECTION -->
+<div class="section-container" id="dispenser">
+  <div class="section-header">
+    <span>ONLINE DISPENSER STOREFRONT</span>
+    <h2>Instant Paani Dispense Karein</h2>
+    <p>Apna container nozzle ke neeche rakhein, quantity select karein aur PhonePe / Google Pay / Paytm se pay karein. Machine turant paani bhar degi!</p>
+  </div>
+
+  <div class="dispenser-box">
+    <div class="dispenser-info">
+      <h3>🚰 Smart Automatic Water ATM</h3>
+      <p>Aapke dwara online pay karte hi hamara automated microcontroller system turant machine ko trigger karta hai aur accurate flow-meter ke sath paani bharta hai.</p>
+      <ul class="dispenser-steps">
+        <li><span class="step-num">1</span> Bottle ya Jar ko dispensing nozzle ke niche rakhein</li>
+        <li><span class="step-num">2</span> 10L (₹10) ya 20L (₹20) select karke UPI pay karein</li>
+        <li><span class="step-num">3</span> Buzzer bajega aur motor automatic chalu ho jayegi!</li>
+      </ul>
+    </div>
+
+    <div class="dispenser-widget">
+      <div class="options-grid">
+        <div class="opt-card selected" id="card10" onclick="chooseQty(10, 10)">
+          <div class="opt-litres">10L</div>
+          <div class="opt-price">₹10.00</div>
+          <div class="opt-sub">10 Litre Paani</div>
+        </div>
+        <div class="opt-card" id="card20" onclick="chooseQty(20, 20)">
+          <div class="opt-litres">20L</div>
+          <div class="opt-price">₹20.00</div>
+          <div class="opt-sub">20 Litre Commercial Jar</div>
+        </div>
+      </div>
+
+      <div class="custom-row">
+        <label>Custom Litres / Amount (₹):</label>
+        <input type="number" id="amtInput" value="10" min="5" max="200" oninput="manualAmt()">
+      </div>
+
+      <button class="pay-btn" id="payBtn" onclick="startUPIPayment()">
+        <span>📲 Pay with UPI</span>
+        <span id="btnAmtLabel">(₹10)</span>
+      </button>
+
+      <div class="upi-badges">
+        <span class="badge">Google Pay</span>
+        <span class="badge">PhonePe</span>
+        <span class="badge">Paytm</span>
+        <span class="badge">BHIM UPI</span>
+        <span class="badge">Cards / NetBanking</span>
+      </div>
+
+      <div id="statusBox" class="status-box"></div>
+    </div>
+  </div>
+</div>
+
+<!-- FEATURES SECTION -->
+<div class="section-container" id="features">
+  <div class="section-header">
+    <span>KISI BHI WAQT, SHUDDH PAANI</span>
+    <h2>Hamari Purity & Technology</h2>
+    <p>Har boond me swasthya aur shuddhata ka vishwas.</p>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feat-icon">🔬</div>
+      <h3>Multi-Stage RO + UV</h3>
+      <p>Industrial grade RO membrane gande TDS, heavy metals aur bacteria ko 99.9% filter karta hai.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feat-icon">⚡</div>
+      <h3>24x7 Smart ATM</h3>
+      <p>Electricity aur power backup ke sath din-raat kisi bhi samay RFID card ya UPI scan se paani prapt karein.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feat-icon">💳</div>
+      <h3>RFID Smart Cards</h3>
+      <p>Ghar ke har sadasya ke liye smart recharge card — bas tap karein aur paani nikal lein, bina kisi phone ke.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feat-icon">🌿</div>
+      <h3>Active Minerals Added</h3>
+      <p>Zaroori poshak tatwa (Calcium, Magnesium) add kiye jate hain taaki paani ka swaad aur swasthya behtar rahe.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feat-icon">📱</div>
+      <h3>Instant Auto-Sync</h3>
+      <p>Grahak apne har ek transaction, recharge aur paani use ka live passbook online dekh sakte hain.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feat-icon">🤝</div>
+      <h3>Local Trust & Support</h3>
+      <p>Banwariya sthit plant par turant sahayata, recharge aur customer grievance redressal uplabdh hai.</p>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-grid">
+    <div class="footer-col">
+      <h4>🚰 ASHA RO WATER</h4>
+      <p>Asha Digital Center initiative providing pure, hygienic, mineral-treated drinking water through smart automated water dispensing systems at affordable rates.</p>
+      <p><strong>Operating Address:</strong> Banwariya, Kushinagar, Uttar Pradesh - 274304, India</p>
+      <p><strong>Support Helpline:</strong> <a href="tel:+917700828989" style="color: #38bdf8;">+91 7700828989</a></p>
+    </div>
+
+    <div class="footer-col">
+      <h4>Company</h4>
+      <ul>
+        <li><a href="/about">About Us</a></li>
+        <li><a href="/contact">Contact Support</a></li>
+        <li><a href="#features">Water Purity Standards</a></li>
+        <li><a href="#dispenser">Online Dispenser</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col">
+      <h4>Legal & Policies</h4>
+      <ul>
+        <li><a href="/terms">Terms & Conditions</a></li>
+        <li><a href="/privacy">Privacy Policy</a></li>
+        <li><a href="/refund">Refund Policy</a></li>
+        <li><a href="/delivery">Shipping & Delivery</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col">
+      <h4>Portal Access</h4>
+      <ul>
+        <li><a href="/admin" onclick="return handleAdminLogin(event)">🔐 Admin / Operator Login</a></li>
+        <li><a href="/pay">💳 Customer Passbook</a></li>
+        <li><a href="/contact">Grievance Redressal</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="footer-bottom">
+    <div>&copy; 2026 Asha RO Water (Asha Digital Center). All rights reserved.</div>
+    <div>Secure Online Payments powered by Razorpay & PayU</div>
+  </div>
+</footer>
+
 <script>
 let selectedLitres = 10;
 let selectedAmount = 10;
-let ratePerLitre = 1; // Rs per Litre
+let ratePerLitre = 1;
 
-// Check query params: e.g. /water?amt=10&auto=1
 const urlParams = new URLSearchParams(window.location.search);
 const paramAmt = parseInt(urlParams.get('amt'), 10);
 const autoTrigger = urlParams.get('auto') === '1' || urlParams.get('auto') === 'true';
@@ -265,12 +425,9 @@ async function init() {
     updateUI();
   }
 
-  // If auto=1 is passed from a specific QR code, automatically trigger Razorpay UPI popup!
   if (autoTrigger) {
     showStatus(`⏳ UPI khul raha hai (₹${selectedAmount})...`, 'info');
-    setTimeout(() => {
-      startUPIPayment();
-    }, 400);
+    setTimeout(() => { startUPIPayment(); }, 400);
   }
 }
 
@@ -306,7 +463,6 @@ async function startUPIPayment() {
   payBtn.disabled = true;
 
   try {
-    // 1. Order create
     const orderRes = await fetch('/api/razorpay/create-order', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -319,7 +475,6 @@ async function startUPIPayment() {
       return;
     }
 
-    // 2. Open Razorpay Checkout (UPI auto-focused)
     const options = {
       key: orderRes.key_id,
       amount: orderRes.amount,
@@ -357,9 +512,7 @@ async function startUPIPayment() {
         type: "WATER_DISPENSE",
         litres: selectedLitres
       },
-      theme: {
-        color: "#0072ff"
-      },
+      theme: { color: "#0284c7" },
       modal: {
         ondismiss: function() {
           showStatus('⚠️ Payment cancel kar diya gaya. Dobara koshish karein.', 'error');
