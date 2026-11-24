@@ -95,30 +95,37 @@ async function loadPage(){
       <span class="price-lbl">💧 Paani ka rate: ₹${pricePerLitre} per litre</span>
     </div>
 
-    <div class="sim-badge">⚠️ UPI QR Payment — Jitna paisa dalenge utna paani machine se niklega</div>
+    <div class="sim-badge" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe">
+      ${isCustomer ? '💳 Card Recharge: Amount chunein aur PhonePe / GPay se recharge karein' : '🚰 UPI Pay Karke Machine Se Direct Paani Nikalein'}
+    </div>
     <div id="alertBox"></div>
 
     <div class="form-group">
-      <label>Kitna Paani / Amount Chahiye?</label>
+      <label>${isCustomer ? 'Kitne Rupaye ka Recharge Chahiye?' : 'Kitna Paani / Amount Chahiye?'}</label>
       <div class="amt-grid">
-        <button class="amt-btn" onclick="selAmt(10,this)">₹10 (10L)</button>
-        <button class="amt-btn sel" onclick="selAmt(20,this)">₹20 (20L)</button>
-        <button class="amt-btn" onclick="selAmt(50,this)">₹50 (50L)</button>
-        <button class="amt-btn" onclick="selAmt(100,this)">₹100 (100L)</button>
+        <button class="amt-btn" onclick="selAmt(10,this)">₹10</button>
+        <button class="amt-btn sel" onclick="selAmt(20,this)">₹20</button>
+        <button class="amt-btn" onclick="selAmt(50,this)">₹50</button>
+        <button class="amt-btn" onclick="selAmt(100,this)">₹100</button>
       </div>
     </div>
     <div class="form-group">
       <label>Ya Custom Amount (₹)</label>
-      <input type="number" id="customAmt" value="20" min="5" placeholder="Amount (e.g. 10, 20)">
+      <input type="number" id="customAmt" value="20" min="5" placeholder="Amount (e.g. 20, 50, 100)">
     </div>
-    <button class="pay-btn" style="background:#057a55;margin-bottom:8px;" onclick="instantWaterDispense()">🚰 UPI Pay Karke Abhi Paani Bharein</button>
-    ${isCustomer ? `<button class="pay-btn" style="background:#0072ff;" onclick="simulatePay()">💳 Ya Wallet Recharge Karein</button>` : ''}
+    
+    ${isCustomer ? 
+      `<button class="pay-btn" style="background:#0284c7;font-size:18px;margin-bottom:10px;" onclick="rechargeCardWithRazorpay()">💳 UPI Se Card Recharge Karein</button>
+       <button class="pay-btn" style="background:#057a55;font-size:15px;padding:10px;" onclick="instantWaterDispense()">🚰 Ya Direct Abhi Paani Nikalein</button>` 
+      : 
+      `<button class="pay-btn" style="background:#057a55;margin-bottom:8px;" onclick="instantWaterDispense()">🚰 UPI Pay Karke Abhi Paani Bharein</button>`
+    }
 
     <div class="history-section" id="histSection" style="${isCustomer ? '' : 'display:none'}">
       <h3>📋 Recent Transactions</h3>
       <div id="histBody">Loading...</div>
     </div>
-    <div class="footer">ASHA RO WATER — Smart Dispenser</div>
+    <div class="footer">ASHA RO WATER — Banwariya • Smart Dispenser</div>
   `;
   if(isCustomer) loadHistory();
 }
@@ -194,30 +201,68 @@ async function instantWaterDispense(){
   rzp.open();
 }
 
-async function simulatePay(){
+async function rechargeCardWithRazorpay(){
   const amt = document.getElementById('customAmt').value;
-  if(!amt || amt < 10){showAlert('Minimum ₹10 ka recharge karein','error');return;}
-  const btn = document.querySelector('.pay-btn');
-  btn.textContent = '⏳ Processing...';
-  btn.disabled = true;
+  if(!amt || amt < 5){ showAlert('Minimum ₹5 ka recharge karein', 'error'); return; }
+  
+  showAlert(`⏳ Razorpay Checkout shuru ho raha hai (₹${amt})...`, 'success');
+  
+  const orderRes = await fetch('/api/razorpay/create-recharge-order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount_rs: amt, customer_id: customerId })
+  }).then(r=>r.json()).catch(()=>null);
 
-  const res = await fetch('/api/pay/upi-simulate',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({customer_id:customerId, amount_rs:amt})
-  }).then(r=>r.json());
-
-  btn.textContent = '💳 UPI se Recharge Karein (TEST)';
-  btn.disabled = false;
-
-  if(res.success){
-    showAlert(`✅ ₹${amt} successfully add ho gaya! New Balance: ₹${res.new_balance_rs}`, 'success');
-    // Refresh balance
-    const info = await fetch(`/api/pay-info/${customerId}`).then(r=>r.json());
-    if(info.success) document.querySelector('.balance').textContent = '₹'+info.balance_rs;
-    loadHistory();
-  } else {
-    showAlert(res.message, 'error');
+  if(!orderRes || !orderRes.success){
+    showAlert(orderRes ? orderRes.message : 'Recharge order create nahi hua.', 'error');
+    return;
   }
+
+  const options = {
+    key: orderRes.key_id,
+    amount: orderRes.amount,
+    currency: "INR",
+    name: "ASHA RO WATER",
+    description: `Card Recharge: ₹${amt} (${orderRes.customer_name})`,
+    order_id: orderRes.order_id,
+    handler: async function (response) {
+      showAlert('⏳ Recharge payment capture ho gaya! Balance add ho raha hai...', 'success');
+      
+      const verifyRes = await fetch('/api/razorpay/verify-recharge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature,
+          amount_rs: amt,
+          customer_id: customerId
+        })
+      }).then(r=>r.json()).catch(()=>null);
+
+      if (verifyRes && verifyRes.success) {
+        showAlert(`🎉 ₹${amt} Card Recharge Success! Naya Balance: ₹${verifyRes.new_balance_rs}`, 'success');
+        const info = await fetch(`/api/pay-info/${customerId}`).then(r=>r.json());
+        if(info && info.success) document.querySelector('.balance').textContent = '₹' + info.balance_rs;
+        if(typeof loadHistory === 'function') loadHistory();
+      } else {
+        showAlert(verifyRes ? verifyRes.message : 'Verification error', 'error');
+      }
+    },
+    prefill: {
+      name: orderRes.customer_name || "Customer",
+      contact: "7700828989"
+    },
+    theme: {
+      color: "#0284c7"
+    }
+  };
+
+  const rzp = new Razorpay(options);
+  rzp.on('payment.failed', function (response){
+    showAlert('❌ Payment fail ho gayi: ' + response.error.description, 'error');
+  });
+  rzp.open();
 }
 
 async function loadHistory(){

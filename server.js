@@ -400,6 +400,109 @@ app.post('/api/razorpay/create-order', async (req, res) => {
   }
 });
 
+// ── Create Razorpay Order for Customer Card Recharge ──
+app.post('/api/razorpay/create-recharge-order', async (req, res) => {
+  try {
+    const { amount_rs, customer_id } = req.body;
+    const amt = parseFloat(amount_rs);
+    if (isNaN(amt) || amt < 5) {
+      return res.status(400).json({ success: false, message: 'Kam se kam ₹5 ka recharge karein' });
+    }
+
+    const db = loadDB();
+    const c = db.customers.find(x => x.id === customer_id);
+    if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
+
+    const amount_paise = Math.round(amt * 100);
+    const options = {
+      amount: amount_paise,
+      currency: "INR",
+      receipt: "card_" + c.id.slice(0, 6) + "_" + Date.now().toString().slice(-4),
+      notes: {
+        type: 'CARD_RECHARGE',
+        customer_id: c.id,
+        customer_name: c.name,
+        card_uid: c.card_uid || ''
+      }
+    };
+
+    const order = await razorpay.orders.create(options);
+    console.log(`💳 Razorpay Card Recharge Order Created: ${order.id} for ₹${amt} (${c.name})`);
+
+    res.json({
+      success: true,
+      order_id: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      key_id: RAZORPAY_KEY_ID,
+      customer_name: c.name,
+      card_uid: c.card_uid
+    });
+  } catch (error) {
+    console.error('❌ Razorpay recharge order error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ── Verify Razorpay Recharge & Credit Card Balance ──
+app.post('/api/razorpay/verify-recharge', (req, res) => {
+  try {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      amount_rs,
+      customer_id
+    } = req.body;
+
+    const amt = parseFloat(amount_rs);
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+    const expectedSignature = crypto
+      .createHmac('sha256', RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest('hex');
+
+    if (expectedSignature !== razorpay_signature) {
+      console.warn('❌ Invalid Razorpay Signature in recharge!');
+      return res.status(400).json({ success: false, message: 'Recharge verification fail ho gaya' });
+    }
+
+    const db = loadDB();
+    const c = db.customers.find(x => x.id === customer_id);
+    if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
+
+    const amount_paise = Math.round(amt * 100);
+    db.wallets[customer_id] = (db.wallets[customer_id] || 0) + amount_paise;
+
+    const txnId = 'REC_' + razorpay_payment_id.slice(-8);
+    db.transactions.unshift({
+      id: txnId,
+      customer_id: c.id,
+      customer_name: c.name,
+      card_uid: c.card_uid || 'CARD',
+      type: 'RECHARGE',
+      amount_paise: amount_paise,
+      note: `Online UPI Recharge via Razorpay (Pay ID: ${razorpay_payment_id})`,
+      payment_ref: razorpay_payment_id,
+      created_at: nowIST()
+    });
+
+    saveDB(db);
+    console.log(`✅ Card Recharge Successful: ₹${amt} added for ${c.name}. New Balance: ₹${(db.wallets[customer_id]/100).toFixed(2)}`);
+
+    res.json({
+      success: true,
+      message: `✅ ₹${amt} recharge successful!`,
+      new_balance_rs: (db.wallets[customer_id] / 100).toFixed(2),
+      txn_id: txnId
+    });
+  } catch (error) {
+    console.error('❌ Verify recharge error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // ── Verify Razorpay Payment & Trigger Water Dispense ──
 app.post('/api/razorpay/verify-payment', (req, res) => {
   try {
@@ -501,6 +604,31 @@ app.post('/api/razorpay/webhook', (req, res) => {
 
       if (amount_rs > 0) {
         const db = loadDB();
+
+        // 💳 CHECK IF THIS IS A CARD WALLET RECHARGE
+        if (payment.notes?.type === 'CARD_RECHARGE' && payment.notes?.customer_id) {
+          const custId = payment.notes.customer_id;
+          const c = db.customers.find(x => x.id === custId);
+          if (c && !db.transactions.find(t => t.payment_ref === payment_id)) {
+            const amount_paise = Math.round(amount_rs * 100);
+            db.wallets[custId] = (db.wallets[custId] || 0) + amount_paise;
+            db.transactions.unshift({
+              id: 'REC_' + payment_id.slice(-8),
+              customer_id: c.id,
+              customer_name: c.name,
+              card_uid: c.card_uid || 'CARD',
+              type: 'RECHARGE',
+              amount_paise: amount_paise,
+              note: `Online UPI Recharge via Razorpay (Webhook, Pay ID: ${payment_id})`,
+              payment_ref: payment_id,
+              created_at: nowIST()
+            });
+            saveDB(db);
+            console.log(`✅ Webhook: Added ₹${amount_rs} recharge to wallet of ${c.name}`);
+          }
+          return res.json({ status: 'ok' });
+        }
+
         if (!db.pending_orders.find(o => o.payment_id === payment_id)) {
           const rate_per_litre = (db.price.paise_per_litre || 100) / 100.0;
           const litres = Math.round((amount_rs / rate_per_litre) * 10) / 10;
@@ -893,20 +1021,32 @@ app.post('/api/price', (req, res) => {
   res.json({ success: true, message: `Price update: ₹${rs_per_litre} per litre` });
 });
 
-// ── GET QR code for customer ──
+// ── GET QR code for customer (Automatic Cloud URL) ──
 app.get('/api/qr/:customer_id', async (req, res) => {
   const db = loadDB();
-  const c  = db.customers.find(x => x.id === req.params.customer_id);
+  const rawId = req.params.customer_id;
+  const c  = db.customers.find(x => x.id === rawId || (x.card_uid && x.card_uid.replace(/\s+/g,'').toUpperCase() === rawId.replace(/\s+/g,'').toUpperCase()));
   if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
 
-  const ip  = getServerIP();
-  const url = `http://${ip}:${PORT}/pay/${c.id}`;
+  // Use Render Cloud Domain by default so QRs work on any phone worldwide!
+  const host = req.headers.host || 'asha-ro-water.onrender.com';
+  const proto = (host.includes('localhost') || host.includes('192.168.')) ? 'http' : 'https';
+  const url = `${proto}://${host}/pay/${c.id}`;
+
   try {
     const qrDataUrl = await QRCode.toDataURL(url, {
-      width: 300, margin: 2,
-      color: { dark: '#00004d', light: '#FFFFFF' }
+      width: 400, margin: 2,
+      color: { dark: '#0284c7', light: '#FFFFFF' }
     });
-    res.json({ success: true, qr_url: url, qr_image: qrDataUrl, customer_name: c.name });
+    res.json({
+      success: true,
+      qr_url: url,
+      qr_image: qrDataUrl,
+      customer_name: c.name,
+      card_uid: c.card_uid || '',
+      phone: c.phone || '',
+      balance_rs: ((db.wallets[c.id] || 0) / 100).toFixed(2)
+    });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -915,7 +1055,8 @@ app.get('/api/qr/:customer_id', async (req, res) => {
 // ── Customer payment page info ──
 app.get('/api/pay-info/:customer_id', (req, res) => {
   const db = loadDB();
-  const c  = db.customers.find(x => x.id === req.params.customer_id);
+  const rawId = req.params.customer_id;
+  const c  = db.customers.find(x => x.id === rawId || (x.card_uid && x.card_uid.replace(/\s+/g,'').toUpperCase() === rawId.replace(/\s+/g,'').toUpperCase()));
   if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
   const nameParts = c.name.split(' ');
   const displayName = nameParts[0] + (nameParts[1] ? ' ' + nameParts[1][0] + '.' : '');
@@ -923,10 +1064,24 @@ app.get('/api/pay-info/:customer_id', (req, res) => {
     success: true,
     id: c.id,
     display_name: displayName,
+    full_name: c.name,
+    card_uid: c.card_uid || '',
+    phone: c.phone || '',
     status: c.status,
     balance_rs: ((db.wallets[c.id] || 0) / 100).toFixed(2),
     price_per_litre: (db.price.paise_per_litre / 100).toFixed(2)
   });
+});
+
+// ── Shortcut: /card/:uid opens payment/recharge page directly ──
+app.get('/card/:card_uid', (req, res) => {
+  const db = loadDB();
+  const searchUid = decodeURIComponent(req.params.card_uid || '').replace(/\s+/g, '').toUpperCase();
+  const c = db.customers.find(x => x.card_uid && x.card_uid.replace(/\s+/g, '').toUpperCase() === searchUid);
+  if (c) {
+    return res.redirect(`/pay/${c.id}`);
+  }
+  res.sendFile(path.join(__dirname, 'public', 'pay.html'));
 });
 
 // ── Card Scan Bridge endpoint (PowerShell bridge POSTs here) ──
