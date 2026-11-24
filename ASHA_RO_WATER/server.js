@@ -301,6 +301,16 @@ app.post('/api/dispense', (req, res) => {
 
   // Deduct
   db.wallets[customer.id] = current_bal - cost_paise;
+
+  // 🎁 20L Cashback: Har 20L paani khareedne par ₹1 cashback wallet mein add hoga
+  db.cashback_wallets = db.cashback_wallets || {};
+  let cashback_earned_paise = 0;
+  if (litres >= 20) {
+    cashback_earned_paise = Math.floor(litres / 20) * 100; // 100 paise = ₹1.00
+    db.cashback_wallets[customer.id] = (db.cashback_wallets[customer.id] || 0) + cashback_earned_paise;
+    console.log(`🎁 Cashback Added: ₹${cashback_earned_paise/100} to ${customer.name}. Total Cashback: ₹${db.cashback_wallets[customer.id]/100}`);
+  }
+
   const txnId = 'DSP_' + uuidv4().substring(0, 8).toUpperCase();
   db.transactions.unshift({
     id: txnId,
@@ -309,7 +319,7 @@ app.post('/api/dispense', (req, res) => {
     card_uid: customer.card_uid,
     type: 'DISPENSE',
     amount_paise: cost_paise,
-    note: `${litres} Liter Dispensed`,
+    note: `${litres} Liter Dispensed${cashback_earned_paise > 0 ? ` (+₹${cashback_earned_paise/100} Cashback Earned)` : ''}`,
     payment_ref: txnId,
     created_at: nowIST()
   });
@@ -323,8 +333,60 @@ app.post('/api/dispense', (req, res) => {
     customer_name: customer.name,
     litres: litres,
     deducted_rs: (cost_paise / 100).toFixed(2),
-    new_balance_rs: (db.wallets[customer.id] / 100).toFixed(2)
+    new_balance_rs: (db.wallets[customer.id] / 100).toFixed(2),
+    cashback_earned_rs: (cashback_earned_paise / 100).toFixed(2),
+    total_cashback_rs: (((db.cashback_wallets && db.cashback_wallets[customer.id]) || 0) / 100).toFixed(2)
   });
+});
+
+// ── POST Claim Cashback (Cashback wallet se Water wallet mein transfer) ──
+app.post('/api/claim-cashback', (req, res) => {
+  try {
+    const { customer_id } = req.body;
+    if (!customer_id) return res.status(400).json({ success: false, message: 'Customer ID zaroori hai' });
+
+    const db = loadDB();
+    const c = db.customers.find(x => x.id === customer_id || (x.card_uid && x.card_uid.replace(/\s+/g,'').toUpperCase() === customer_id.replace(/\s+/g,'').toUpperCase()));
+    if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
+
+    db.cashback_wallets = db.cashback_wallets || {};
+    const cbPaise = db.cashback_wallets[c.id] || 0;
+
+    if (cbPaise <= 0) {
+      return res.status(400).json({ success: false, message: 'Filhal claim karne ke liye koi cashback nahi hai. 20L paani lene par ₹1 cashback milta hai!' });
+    }
+
+    // Transfer cashback to main water wallet
+    db.cashback_wallets[c.id] = 0;
+    db.wallets[c.id] = (db.wallets[c.id] || 0) + cbPaise;
+
+    const txnId = 'CB_' + uuidv4().substring(0, 8).toUpperCase();
+    db.transactions.unshift({
+      id: txnId,
+      customer_id: c.id,
+      customer_name: c.name,
+      card_uid: c.card_uid || 'CARD',
+      type: 'CASHBACK',
+      amount_paise: cbPaise,
+      note: `🎁 ₹${(cbPaise / 100).toFixed(2)} Cashback Claimed (Added to Water Wallet)`,
+      payment_ref: txnId,
+      created_at: nowIST()
+    });
+
+    saveDB(db);
+    console.log(`🎉 ${c.name} claimed ₹${(cbPaise/100).toFixed(2)} cashback! New Balance: ₹${(db.wallets[c.id]/100).toFixed(2)}`);
+
+    res.json({
+      success: true,
+      message: `🎉 ₹${(cbPaise/100).toFixed(2)} Cashback aapke Paani Wallet mein jud gaya hai!`,
+      claimed_rs: (cbPaise / 100).toFixed(2),
+      new_balance_rs: (db.wallets[c.id] / 100).toFixed(2),
+      cashback_rs: "0.00"
+    });
+  } catch (err) {
+    console.error('Error claiming cashback:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // ── POST simulate UPI payment (TEST MODE) ──
@@ -916,8 +978,14 @@ app.post('/api/machine/offline-sync', (req, res) => {
     const custName = c ? c.name : 'Unknown Card (' + cleanUid + ')';
 
     // Deduct balance if registered
+    let cbEarnedPaise = 0;
     if (c) {
       db.wallets[c.id] = (db.wallets[c.id] || 0) - costPaise;
+      if (litres >= 20) {
+        cbEarnedPaise = Math.floor(litres / 20) * 100;
+        db.cashback_wallets = db.cashback_wallets || {};
+        db.cashback_wallets[c.id] = (db.cashback_wallets[c.id] || 0) + cbEarnedPaise;
+      }
     }
 
     const txnId = 'OFF_' + uuidv4().substring(0, 8).toUpperCase();
@@ -928,7 +996,7 @@ app.post('/api/machine/offline-sync', (req, res) => {
       card_uid: c ? c.card_uid : cleanUid,
       type: 'DISPENSE',
       amount_paise: costPaise,
-      note: `💧 Offline Dispense (${litres}L auto-synced)`,
+      note: `💧 Offline Dispense (${litres}L auto-synced)${cbEarnedPaise > 0 ? ` (+₹${cbEarnedPaise/100} Cashback)` : ''}`,
       payment_ref: txnId,
       created_at: nowIST()
     });
@@ -1144,24 +1212,56 @@ app.get('/api/customer-card-qrs/:customer_id', async (req, res) => {
 });
 
 // ── Customer payment page info ──
-app.get('/api/pay-info/:customer_id', (req, res) => {
-  const db = loadDB();
-  const rawId = req.params.customer_id;
-  const c  = db.customers.find(x => x.id === rawId || (x.card_uid && x.card_uid.replace(/\s+/g,'').toUpperCase() === rawId.replace(/\s+/g,'').toUpperCase()));
-  if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
-  const nameParts = c.name.split(' ');
-  const displayName = nameParts[0] + (nameParts[1] ? ' ' + nameParts[1][0] + '.' : '');
-  res.json({
-    success: true,
-    id: c.id,
-    display_name: displayName,
-    full_name: c.name,
-    card_uid: c.card_uid || '',
-    phone: c.phone || '',
-    status: c.status,
-    balance_rs: ((db.wallets[c.id] || 0) / 100).toFixed(2),
-    price_per_litre: (db.price.paise_per_litre / 100).toFixed(2)
-  });
+app.get('/api/pay-info/:customer_id', async (req, res) => {
+  try {
+    const db = loadDB();
+    const rawId = req.params.customer_id;
+    const c  = db.customers.find(x => x.id === rawId || (x.card_uid && x.card_uid.replace(/\s+/g,'').toUpperCase() === rawId.replace(/\s+/g,'').toUpperCase()));
+    if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
+
+    // Generate direct UPI QR if not present
+    if (!c.razorpay_qr_id || !c.razorpay_qr_image) {
+      try {
+        const qr = await razorpay.qrCode.create({
+          type: 'upi_qr',
+          name: c.name.slice(0, 30),
+          usage: 'multiple_use',
+          fixed_amount: false,
+          description: `Card Recharge: ${c.name}`,
+          notes: {
+            type: 'CARD_RECHARGE',
+            card_uid: c.card_uid || '',
+            customer_id: c.id
+          }
+        });
+        c.razorpay_qr_id = qr.id;
+        c.razorpay_qr_image = qr.image_url;
+        saveDB(db);
+      } catch(e) {
+        console.warn('QR auto-create warning in pay-info:', e.message);
+      }
+    }
+
+    const nameParts = c.name.split(' ');
+    const displayName = nameParts[0] + (nameParts[1] ? ' ' + nameParts[1][0] + '.' : '');
+    const cbPaise = (db.cashback_wallets && db.cashback_wallets[c.id]) || 0;
+
+    res.json({
+      success: true,
+      id: c.id,
+      display_name: displayName,
+      full_name: c.name,
+      card_uid: c.card_uid || '',
+      phone: c.phone || '',
+      status: c.status,
+      balance_rs: ((db.wallets[c.id] || 0) / 100).toFixed(2),
+      cashback_rs: (cbPaise / 100).toFixed(2),
+      razorpay_qr_image: c.razorpay_qr_image || '',
+      price_per_litre: ((db.price.paise_per_litre || 100) / 100).toFixed(2)
+    });
+  } catch(err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // ── Shortcut: /card/:uid opens payment/recharge page directly ──
