@@ -922,8 +922,12 @@ app.get('/api/machine-qr', async (req, res) => {
   }
 });
 
-// ── Root → Admin ──
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// ── Root → Customer Water Storefront & Dispenser Homepage ──
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'water.html')));
+app.get('/water', (req, res) => res.sendFile(path.join(__dirname, 'public', 'water.html')));
+
+// ── Admin Management Panel ──
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 // ─── START ────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {

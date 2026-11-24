@@ -185,9 +185,10 @@
 <body>
 
 <div class="container">
-  <div class="header">
+  <div class="header" style="position: relative;">
+    <a href="/admin" onclick="return handleAdminLogin(event)" style="position: absolute; top: 12px; right: 14px; background: rgba(255,255,255,0.22); color: #fff; padding: 4px 10px; border-radius: 20px; font-size: 11px; text-decoration: none; font-weight: 700; border: 1px solid rgba(255,255,255,0.35);">🔐 Admin</a>
     <h1>🚰 ASHA RO WATER</h1>
-    <p>Smart Automatic Water ATM</p>
+    <p>Smart Automatic Water ATM • Pure Drinking Water</p>
   </div>
 
   <div class="content">
@@ -384,6 +385,18 @@ function showStatus(msg, type) {
   const box = document.getElementById('statusBox');
   box.className = 'status-box status-' + type;
   box.innerHTML = msg;
+}
+
+function handleAdminLogin(e) {
+  if (e) e.preventDefault();
+  const pin = prompt("🔐 Admin / Operator PIN Dalein:");
+  if (pin === "1234") {
+    sessionStorage.setItem("asha_admin_auth", "1");
+    window.location.href = "/admin";
+  } else if (pin !== null) {
+    alert("❌ Galat Admin PIN!");
+  }
+  return false;
 }
 
 init();
