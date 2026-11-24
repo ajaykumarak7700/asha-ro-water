@@ -538,6 +538,68 @@ app.post('/api/razorpay/webhook', (req, res) => {
   }
 });
 
+// ── Cashfree Webhook (Direct Cloud Capture for Cashfree QR) ──
+app.post('/api/cashfree/webhook', (req, res) => {
+  try {
+    const body = req.body || {};
+    console.log('🔔 Cashfree Webhook received:', JSON.stringify(body));
+
+    let payment_id = null;
+    let amount_rs = 0;
+    let buyerName = 'Cashfree User';
+
+    if (body.data) {
+      payment_id = body.data.payment?.cf_payment_id || body.data.order?.order_id || ('CF_' + Date.now());
+      amount_rs = parseFloat(body.data.payment?.payment_amount || body.data.order?.order_amount || 0);
+      buyerName = body.data.customer_details?.customer_name || 'Cashfree User';
+    } else if (body.orderId || body.referenceId) {
+      payment_id = body.referenceId || body.orderId;
+      amount_rs = parseFloat(body.orderAmount || 0);
+      buyerName = body.customerName || 'Cashfree User';
+    }
+
+    if (amount_rs > 0 && payment_id) {
+      payment_id = String(payment_id);
+      const db = loadDB();
+      if (!db.pending_orders.find(o => o.payment_id === payment_id)) {
+        const rate_per_litre = (db.price.paise_per_litre || 100) / 100.0;
+        const litres = Math.round((amount_rs / rate_per_litre) * 10) / 10;
+
+        const orderId = 'CF_' + payment_id.slice(-8);
+        db.pending_orders.push({
+          id: orderId,
+          amount_rs: amount_rs,
+          litres: litres,
+          customer_name: buyerName,
+          payment_id: payment_id,
+          status: 'pending',
+          created_at: nowIST()
+        });
+
+        db.transactions.unshift({
+          id: 'DSP_' + uuidv4().slice(0, 8).toUpperCase(),
+          customer_id: 'CASHFREE_BUYER',
+          customer_name: buyerName,
+          card_uid: 'CASHFREE_QR',
+          type: 'DISPENSE',
+          amount_paise: Math.round(amount_rs * 100),
+          note: `Cashfree UPI: ₹${amount_rs} -> ${litres}L Water`,
+          payment_ref: payment_id,
+          created_at: nowIST()
+        });
+
+        saveDB(db);
+        console.log(`🚰 Cashfree Webhook: Enqueued ${litres}L dispense for machine!`);
+      }
+    }
+
+    res.json({ status: 'ok' });
+  } catch (err) {
+    console.error('Cashfree Webhook error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ══════════════════════════════════════════════════════════════
 // 💧 QR PAYMENT WATER DISPENSE & MACHINE QUEUE
 // ══════════════════════════════════════════════════════════════
