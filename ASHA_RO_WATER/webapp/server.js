@@ -1182,6 +1182,14 @@ app.get('/api/customer-card-qrs/:customer_id', async (req, res) => {
       }
     }
 
+    // Generate pure square UPI QR (prevents any rectangular banner squishing)
+    const qrIdClean = (c.razorpay_qr_id || '').replace(/^qr_/, '');
+    const upiIntent = qrIdClean ? `upi://pay?cu=INR&mc=5817&mode=19&pa=ashaenterprises673694.rzp@rxairtel&tn=Payment%20To%20ASHA%20ENTERPRISES&tr=${qrIdClean}qrv2` : '';
+    const squareUpiQr = upiIntent ? await QRCode.toDataURL(upiIntent, {
+      width: 450, margin: 2,
+      color: { dark: '#15803d', light: '#FFFFFF' }
+    }).catch(() => '') : '';
+
     // 2. Generate Web Passbook & Balance Enquiry QR (Side 2)
     const passbookUrl = `https://asha-ro-water.onrender.com/pay/${c.id}`;
     const passbookQrDataUrl = await QRCode.toDataURL(passbookUrl, {
@@ -1199,8 +1207,9 @@ app.get('/api/customer-card-qrs/:customer_id', async (req, res) => {
         balance_rs: ((db.wallets[c.id] || 0) / 100).toFixed(2),
         rate_rs: ((db.price.paise_per_litre || 100) / 100).toFixed(2)
       },
-      // Side 1: Direct UPI QR (PhonePe / GPay)
-      side1_upi_qr: c.razorpay_qr_image || '',
+      // Side 1: Pure Square UPI QR (PhonePe / GPay)
+      side1_upi_qr: squareUpiQr || c.razorpay_qr_image || '',
+      side1_upi_intent: upiIntent,
       // Side 2: Passbook & Balance Enquiry QR
       side2_passbook_url: passbookUrl,
       side2_passbook_qr: passbookQrDataUrl
@@ -1246,6 +1255,14 @@ app.get('/api/pay-info/:customer_id', async (req, res) => {
     const displayName = nameParts[0] + (nameParts[1] ? ' ' + nameParts[1][0] + '.' : '');
     const cbPaise = (db.cashback_wallets && db.cashback_wallets[c.id]) || 0;
 
+    // Generate pure square UPI QR data URL
+    const qrIdClean = (c.razorpay_qr_id || '').replace(/^qr_/, '');
+    const upiIntent = qrIdClean ? `upi://pay?cu=INR&mc=5817&mode=19&pa=ashaenterprises673694.rzp@rxairtel&tn=Payment%20To%20ASHA%20ENTERPRISES&tr=${qrIdClean}qrv2` : '';
+    const squareUpiQr = upiIntent ? await QRCode.toDataURL(upiIntent, {
+      width: 450, margin: 2,
+      color: { dark: '#0f172a', light: '#FFFFFF' }
+    }).catch(() => '') : '';
+
     res.json({
       success: true,
       id: c.id,
@@ -1256,6 +1273,8 @@ app.get('/api/pay-info/:customer_id', async (req, res) => {
       status: c.status,
       balance_rs: ((db.wallets[c.id] || 0) / 100).toFixed(2),
       cashback_rs: (cbPaise / 100).toFixed(2),
+      upi_qr_data: squareUpiQr || c.razorpay_qr_image || '',
+      upi_intent: upiIntent,
       razorpay_qr_image: c.razorpay_qr_image || '',
       price_per_litre: ((db.price.paise_per_litre || 100) / 100).toFixed(2)
     });
