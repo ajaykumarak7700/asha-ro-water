@@ -400,7 +400,7 @@ app.post('/api/razorpay/create-order', async (req, res) => {
   }
 });
 
-// ── Create Razorpay Order for Customer Card Recharge ──
+// ── Create Razorpay Order for Customer Card Recharge (Direct Hosted Link - No Domain Block!) ──
 app.post('/api/razorpay/create-recharge-order', async (req, res) => {
   try {
     const { amount_rs, customer_id } = req.body;
@@ -414,32 +414,36 @@ app.post('/api/razorpay/create-recharge-order', async (req, res) => {
     if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
 
     const amount_paise = Math.round(amt * 100);
-    const options = {
+
+    const pl = await razorpay.paymentLink.create({
       amount: amount_paise,
       currency: "INR",
-      receipt: "card_" + c.id.slice(0, 6) + "_" + Date.now().toString().slice(-4),
+      accept_partial: false,
+      description: `Card Recharge: Rs ${amt} (${c.name})`,
+      customer: {
+        name: c.name,
+        contact: c.phone || '7700828989'
+      },
+      callback_url: `https://asha-ro-water.onrender.com/pay/${c.id}?recharge=success&amt=${amt}`,
+      callback_method: 'get',
       notes: {
         type: 'CARD_RECHARGE',
         customer_id: c.id,
         customer_name: c.name,
         card_uid: c.card_uid || ''
       }
-    };
+    });
 
-    const order = await razorpay.orders.create(options);
-    console.log(`💳 Razorpay Card Recharge Order Created: ${order.id} for ₹${amt} (${c.name})`);
+    console.log(`💳 Razorpay Payment Link Created: ${pl.short_url} for ₹${amt} (${c.name})`);
 
     res.json({
       success: true,
-      order_id: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      key_id: RAZORPAY_KEY_ID,
+      payment_link: pl.short_url,
       customer_name: c.name,
       card_uid: c.card_uid
     });
   } catch (error) {
-    console.error('❌ Razorpay recharge order error:', error);
+    console.error('❌ Razorpay recharge link error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

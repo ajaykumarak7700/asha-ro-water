@@ -127,7 +127,15 @@ async function loadPage(){
     </div>
     <div class="footer">ASHA RO WATER — Banwariya • Smart Dispenser</div>
   `;
-  if(isCustomer) loadHistory();
+  if(isCustomer) {
+    loadHistory();
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('recharge') === 'success'){
+      const successAmt = params.get('amt') || '';
+      showAlert(`🎉 ₹${successAmt} Card Recharge Successful! Naya Balance card mein jud gaya hai.`, 'success');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }
 }
 
 function selAmt(v, btn){
@@ -205,7 +213,7 @@ async function rechargeCardWithRazorpay(){
   const amt = document.getElementById('customAmt').value;
   if(!amt || amt < 5){ showAlert('Minimum ₹5 ka recharge karein', 'error'); return; }
   
-  showAlert(`⏳ Razorpay Checkout shuru ho raha hai (₹${amt})...`, 'success');
+  showAlert(`⏳ Razorpay Secure UPI Page khul raha hai (₹${amt})...`, 'success');
   
   const orderRes = await fetch('/api/razorpay/create-recharge-order', {
     method: 'POST',
@@ -213,56 +221,13 @@ async function rechargeCardWithRazorpay(){
     body: JSON.stringify({ amount_rs: amt, customer_id: customerId })
   }).then(r=>r.json()).catch(()=>null);
 
-  if(!orderRes || !orderRes.success){
-    showAlert(orderRes ? orderRes.message : 'Recharge order create nahi hua.', 'error');
+  if(!orderRes || !orderRes.success || !orderRes.payment_link){
+    showAlert(orderRes ? orderRes.message : 'Recharge link generate nahi hua.', 'error');
     return;
   }
 
-  const options = {
-    key: orderRes.key_id,
-    amount: orderRes.amount,
-    currency: "INR",
-    name: "ASHA RO WATER",
-    description: `Card Recharge: ₹${amt} (${orderRes.customer_name})`,
-    order_id: orderRes.order_id,
-    handler: async function (response) {
-      showAlert('⏳ Recharge payment capture ho gaya! Balance add ho raha hai...', 'success');
-      
-      const verifyRes = await fetch('/api/razorpay/verify-recharge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          razorpay_order_id: response.razorpay_order_id,
-          razorpay_payment_id: response.razorpay_payment_id,
-          razorpay_signature: response.razorpay_signature,
-          amount_rs: amt,
-          customer_id: customerId
-        })
-      }).then(r=>r.json()).catch(()=>null);
-
-      if (verifyRes && verifyRes.success) {
-        showAlert(`🎉 ₹${amt} Card Recharge Success! Naya Balance: ₹${verifyRes.new_balance_rs}`, 'success');
-        const info = await fetch(`/api/pay-info/${customerId}`).then(r=>r.json());
-        if(info && info.success) document.querySelector('.balance').textContent = '₹' + info.balance_rs;
-        if(typeof loadHistory === 'function') loadHistory();
-      } else {
-        showAlert(verifyRes ? verifyRes.message : 'Verification error', 'error');
-      }
-    },
-    prefill: {
-      name: orderRes.customer_name || "Customer",
-      contact: "7700828989"
-    },
-    theme: {
-      color: "#0284c7"
-    }
-  };
-
-  const rzp = new Razorpay(options);
-  rzp.on('payment.failed', function (response){
-    showAlert('❌ Payment fail ho gayi: ' + response.error.description, 'error');
-  });
-  rzp.open();
+  // Redirect to official Razorpay Hosted Payment Page (100% Guaranteed No Domain Block!)
+  window.location.href = orderRes.payment_link;
 }
 
 async function loadHistory(){
