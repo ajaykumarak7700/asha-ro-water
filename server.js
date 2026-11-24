@@ -1021,17 +1021,15 @@ app.post('/api/price', (req, res) => {
   res.json({ success: true, message: `Price update: ₹${rs_per_litre} per litre` });
 });
 
-// ── GET QR code for customer (Automatic Cloud URL) ──
+// ── GET QR code for customer (ALWAYS Live Global Cloud URL) ──
 app.get('/api/qr/:customer_id', async (req, res) => {
   const db = loadDB();
   const rawId = req.params.customer_id;
   const c  = db.customers.find(x => x.id === rawId || (x.card_uid && x.card_uid.replace(/\s+/g,'').toUpperCase() === rawId.replace(/\s+/g,'').toUpperCase()));
   if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
 
-  // Use Render Cloud Domain by default so QRs work on any phone worldwide!
-  const host = req.headers.host || 'asha-ro-water.onrender.com';
-  const proto = (host.includes('localhost') || host.includes('192.168.')) ? 'http' : 'https';
-  const url = `${proto}://${host}/pay/${c.id}`;
+  // ALWAYS use permanent global URL so QR works on customer mobile data anywhere!
+  const url = `https://asha-ro-water.onrender.com/pay/${c.id}`;
 
   try {
     const qrDataUrl = await QRCode.toDataURL(url, {
@@ -1134,10 +1132,9 @@ app.get('/shipping', (req, res) => res.sendFile(path.join(__dirname, 'public', '
 
 // ── GET Machine QR Code (Print karne ke liye) ──
 app.get('/api/machine-qr', async (req, res) => {
-  const ip = getServerIP();
   const amt = req.query.amt ? parseInt(req.query.amt) : 0;
   const auto = req.query.auto === '1' || req.query.auto === 'true';
-  let url = `http://${ip}:${PORT}/water`;
+  let url = `https://asha-ro-water.onrender.com/water`;
   let title = "ASHA RO WATER";
   if (amt > 0) {
     url += `?amt=${amt}` + (auto ? '&auto=1' : '');
