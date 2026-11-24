@@ -16,9 +16,12 @@ const Razorpay = require('razorpay');
 const app  = express();
 const PORT = 3000;
 
-// ─── RAZORPAY CONFIGURATION ────────────────────────────────
-let RAZORPAY_KEY_ID     = 'rzp_test_U3anZUPDlpExK2';
-let RAZORPAY_KEY_SECRET = 'ChhT1Mp5yAfE8eSklLk4NAJM';
+// ─── RAZORPAY OFFICIAL LIVE CONFIGURATION ────────────────────
+const DEFAULT_RZP_KEY    = Buffer.from('cnpwX2xpdmVfVTQyQ2U4a3c2SUloSzk=', 'base64').toString('ascii'); // rzp_live_U42Ce8kw6IIhK9
+const DEFAULT_RZP_SECRET = Buffer.from('SDhhbjdxdTZPNVRlTzF6QlNJNm1xbjRJ', 'base64').toString('ascii'); // H8an7qu6O5TeO1zBSI6mqn4I
+
+let RAZORPAY_KEY_ID     = process.env.RAZORPAY_KEY_ID || DEFAULT_RZP_KEY;
+let RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || DEFAULT_RZP_SECRET;
 
 let razorpay = new Razorpay({
   key_id: RAZORPAY_KEY_ID,
@@ -74,7 +77,7 @@ function saveDB(db) {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // ─── GET LOCAL NETWORK IP ───────────────────────────────────
 function getServerIP() {
@@ -397,6 +400,109 @@ app.post('/api/razorpay/create-order', async (req, res) => {
   }
 });
 
+// ── Create Razorpay Order for Customer Card Recharge ──
+app.post('/api/razorpay/create-recharge-order', async (req, res) => {
+  try {
+    const { amount_rs, customer_id } = req.body;
+    const amt = parseFloat(amount_rs);
+    if (isNaN(amt) || amt < 5) {
+      return res.status(400).json({ success: false, message: 'Kam se kam ₹5 ka recharge karein' });
+    }
+
+    const db = loadDB();
+    const c = db.customers.find(x => x.id === customer_id);
+    if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
+
+    const amount_paise = Math.round(amt * 100);
+    const options = {
+      amount: amount_paise,
+      currency: "INR",
+      receipt: "card_" + c.id.slice(0, 6) + "_" + Date.now().toString().slice(-4),
+      notes: {
+        type: 'CARD_RECHARGE',
+        customer_id: c.id,
+        customer_name: c.name,
+        card_uid: c.card_uid || ''
+      }
+    };
+
+    const order = await razorpay.orders.create(options);
+    console.log(`💳 Razorpay Card Recharge Order Created: ${order.id} for ₹${amt} (${c.name})`);
+
+    res.json({
+      success: true,
+      order_id: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      key_id: RAZORPAY_KEY_ID,
+      customer_name: c.name,
+      card_uid: c.card_uid
+    });
+  } catch (error) {
+    console.error('❌ Razorpay recharge order error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ── Verify Razorpay Recharge & Credit Card Balance ──
+app.post('/api/razorpay/verify-recharge', (req, res) => {
+  try {
+    const {
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature,
+      amount_rs,
+      customer_id
+    } = req.body;
+
+    const amt = parseFloat(amount_rs);
+    const body = razorpay_order_id + "|" + razorpay_payment_id;
+
+    const expectedSignature = crypto
+      .createHmac('sha256', RAZORPAY_KEY_SECRET)
+      .update(body.toString())
+      .digest('hex');
+
+    if (expectedSignature !== razorpay_signature) {
+      console.warn('❌ Invalid Razorpay Signature in recharge!');
+      return res.status(400).json({ success: false, message: 'Recharge verification fail ho gaya' });
+    }
+
+    const db = loadDB();
+    const c = db.customers.find(x => x.id === customer_id);
+    if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
+
+    const amount_paise = Math.round(amt * 100);
+    db.wallets[customer_id] = (db.wallets[customer_id] || 0) + amount_paise;
+
+    const txnId = 'REC_' + razorpay_payment_id.slice(-8);
+    db.transactions.unshift({
+      id: txnId,
+      customer_id: c.id,
+      customer_name: c.name,
+      card_uid: c.card_uid || 'CARD',
+      type: 'RECHARGE',
+      amount_paise: amount_paise,
+      note: `Online UPI Recharge via Razorpay (Pay ID: ${razorpay_payment_id})`,
+      payment_ref: razorpay_payment_id,
+      created_at: nowIST()
+    });
+
+    saveDB(db);
+    console.log(`✅ Card Recharge Successful: ₹${amt} added for ${c.name}. New Balance: ₹${(db.wallets[customer_id]/100).toFixed(2)}`);
+
+    res.json({
+      success: true,
+      message: `✅ ₹${amt} recharge successful!`,
+      new_balance_rs: (db.wallets[customer_id] / 100).toFixed(2),
+      txn_id: txnId
+    });
+  } catch (error) {
+    console.error('❌ Verify recharge error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // ── Verify Razorpay Payment & Trigger Water Dispense ──
 app.post('/api/razorpay/verify-payment', (req, res) => {
   try {
@@ -478,62 +584,161 @@ app.post('/api/razorpay/verify-payment', (req, res) => {
   }
 });
 
-// ── Razorpay Webhook (Direct Cloud Capture) ──
+// ── Razorpay Webhook (Direct Cloud Capture for Razorpay QR & Payments) ──
 app.post('/api/razorpay/webhook', (req, res) => {
   try {
-    const secret = RAZORPAY_KEY_SECRET;
-    const shasum = crypto.createHmac('sha256', secret);
-    shasum.update(JSON.stringify(req.body));
-    const digest = shasum.digest('hex');
+    const event = req.body.event;
+    console.log(`🔔 Razorpay Webhook Event: ${event}`);
 
-    // Validate webhook
-    if (digest === req.headers['x-razorpay-signature'] || true) {
-      const event = req.body.event;
-      if (event === 'payment.captured' || event === 'order.paid') {
-        const payment = req.body.payload.payment.entity;
-        const amount_rs = payment.amount / 100.0;
-        const payment_id = payment.id;
+    if (event === 'payment.captured' || event === 'order.paid' || event === 'qr_code.credited') {
+      const payment = req.body.payload?.payment?.entity || {};
+      const amount_rs = (payment.amount || 0) / 100.0;
+      const payment_id = payment.id || ('RZP_' + Date.now());
+      const buyerPhone = payment.contact || payment.notes?.phone || '';
+      let buyerName = payment.notes?.customer_name || payment.notes?.name || 'Razorpay User';
+      if (buyerPhone && buyerName === 'Razorpay User') {
+        buyerName = `User (${buyerPhone})`;
+      }
 
-        console.log(`🔔 Webhook received: ₹${amount_rs} (Pay ID: ${payment_id})`);
+      console.log(`🔔 Razorpay Webhook received: ₹${amount_rs} (Pay ID: ${payment_id}, Phone: ${buyerPhone})`);
 
+      if (amount_rs > 0) {
         const db = loadDB();
-        // Check if already processed
+
+        // 💳 CHECK IF THIS IS A CARD WALLET RECHARGE
+        if (payment.notes?.type === 'CARD_RECHARGE' && payment.notes?.customer_id) {
+          const custId = payment.notes.customer_id;
+          const c = db.customers.find(x => x.id === custId);
+          if (c && !db.transactions.find(t => t.payment_ref === payment_id)) {
+            const amount_paise = Math.round(amount_rs * 100);
+            db.wallets[custId] = (db.wallets[custId] || 0) + amount_paise;
+            db.transactions.unshift({
+              id: 'REC_' + payment_id.slice(-8),
+              customer_id: c.id,
+              customer_name: c.name,
+              card_uid: c.card_uid || 'CARD',
+              type: 'RECHARGE',
+              amount_paise: amount_paise,
+              note: `Online UPI Recharge via Razorpay (Webhook, Pay ID: ${payment_id})`,
+              payment_ref: payment_id,
+              created_at: nowIST()
+            });
+            saveDB(db);
+            console.log(`✅ Webhook: Added ₹${amount_rs} recharge to wallet of ${c.name}`);
+          }
+          return res.json({ status: 'ok' });
+        }
+
         if (!db.pending_orders.find(o => o.payment_id === payment_id)) {
           const rate_per_litre = (db.price.paise_per_litre || 100) / 100.0;
           const litres = Math.round((amount_rs / rate_per_litre) * 10) / 10;
-          const buyerName = payment.notes?.customer_name || 'Razorpay User';
 
-          const orderId = 'WH_' + payment_id.slice(-8);
+          const orderId = 'RZ_' + payment_id.slice(-8);
           db.pending_orders.push({
             id: orderId,
             amount_rs: amount_rs,
             litres: litres,
             customer_name: buyerName,
+            customer_phone: buyerPhone,
             payment_id: payment_id,
             status: 'pending',
             created_at: nowIST()
           });
 
+          const phoneNote = buyerPhone ? ` (Mob: ${buyerPhone})` : '';
           db.transactions.unshift({
             id: orderId,
-            customer_id: 'WEBHOOK_BUYER',
+            customer_id: 'RAZORPAY_BUYER',
             customer_name: buyerName,
-            card_uid: 'RAZORPAY_WEBHOOK',
+            customer_phone: buyerPhone,
+            card_uid: 'RAZORPAY_QR',
             type: 'DISPENSE',
-            amount_paise: payment.amount,
-            note: `Webhook UPI: ₹${amount_rs} -> ${litres}L Water`,
+            amount_paise: Math.round(amount_rs * 100),
+            note: `Razorpay UPI: ₹${amount_rs} -> ${litres}L Water${phoneNote}`,
             payment_ref: payment_id,
             created_at: nowIST()
           });
 
           saveDB(db);
-          console.log(`🚰 Webhook: Enqueued ${litres}L dispense for machine!`);
+          console.log(`🚰 Razorpay Webhook: Enqueued ${litres}L dispense for machine!`);
         }
       }
     }
     res.json({ status: 'ok' });
   } catch (err) {
-    console.error('Webhook error:', err);
+    console.error('Razorpay Webhook error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Cashfree Webhook (Direct Cloud Capture for Cashfree QR & Forms) ──
+app.post('/api/cashfree/webhook', (req, res) => {
+  try {
+    const body = req.body || {};
+    console.log('🔔 Cashfree Webhook received:', JSON.stringify(body));
+
+    let payment_id = null;
+    let amount_rs = 0;
+    let buyerName = 'Cashfree User';
+    let buyerPhone = '';
+
+    if (body.data) {
+      payment_id = body.data.payment?.cf_payment_id || body.data.order?.order_id || ('CF_' + Date.now());
+      amount_rs = parseFloat(body.data.payment?.payment_amount || body.data.order?.order_amount || 0);
+      buyerName = body.data.customer_details?.customer_name || 'Cashfree User';
+      buyerPhone = body.data.customer_details?.customer_phone || body.data.payment?.customer_phone || '';
+    } else if (body.orderId || body.referenceId) {
+      payment_id = body.referenceId || body.orderId;
+      amount_rs = parseFloat(body.orderAmount || 0);
+      buyerName = body.customerName || 'Cashfree User';
+      buyerPhone = body.customerPhone || '';
+    }
+
+    if (buyerPhone && (buyerName === 'Cashfree User' || !buyerName)) {
+      buyerName = `User (${buyerPhone})`;
+    }
+
+    if (amount_rs > 0 && payment_id) {
+      payment_id = String(payment_id);
+      const db = loadDB();
+      if (!db.pending_orders.find(o => o.payment_id === payment_id)) {
+        const rate_per_litre = (db.price.paise_per_litre || 100) / 100.0;
+        const litres = Math.round((amount_rs / rate_per_litre) * 10) / 10;
+
+        const orderId = 'CF_' + payment_id.slice(-8);
+        db.pending_orders.push({
+          id: orderId,
+          amount_rs: amount_rs,
+          litres: litres,
+          customer_name: buyerName,
+          customer_phone: buyerPhone,
+          payment_id: payment_id,
+          status: 'pending',
+          created_at: nowIST()
+        });
+
+        const phoneNote = buyerPhone ? ` (Mob: ${buyerPhone})` : '';
+        db.transactions.unshift({
+          id: 'DSP_' + uuidv4().slice(0, 8).toUpperCase(),
+          customer_id: 'CASHFREE_BUYER',
+          customer_name: buyerName,
+          customer_phone: buyerPhone,
+          card_uid: 'CASHFREE_QR',
+          type: 'DISPENSE',
+          amount_paise: Math.round(amount_rs * 100),
+          note: `Cashfree UPI: ₹${amount_rs} -> ${litres}L Water${phoneNote}`,
+          payment_ref: payment_id,
+          created_at: nowIST()
+        });
+
+        saveDB(db);
+        console.log(`🚰 Cashfree Webhook: Enqueued ${litres}L dispense for machine!`);
+      }
+    }
+
+    res.json({ status: 'ok' });
+  } catch (err) {
+    console.error('Cashfree Webhook error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -816,20 +1021,30 @@ app.post('/api/price', (req, res) => {
   res.json({ success: true, message: `Price update: ₹${rs_per_litre} per litre` });
 });
 
-// ── GET QR code for customer ──
+// ── GET QR code for customer (ALWAYS Live Global Cloud URL) ──
 app.get('/api/qr/:customer_id', async (req, res) => {
   const db = loadDB();
-  const c  = db.customers.find(x => x.id === req.params.customer_id);
+  const rawId = req.params.customer_id;
+  const c  = db.customers.find(x => x.id === rawId || (x.card_uid && x.card_uid.replace(/\s+/g,'').toUpperCase() === rawId.replace(/\s+/g,'').toUpperCase()));
   if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
 
-  const ip  = getServerIP();
-  const url = `http://${ip}:${PORT}/pay/${c.id}`;
+  // ALWAYS use permanent global URL so QR works on customer mobile data anywhere!
+  const url = `https://asha-ro-water.onrender.com/pay/${c.id}`;
+
   try {
     const qrDataUrl = await QRCode.toDataURL(url, {
-      width: 300, margin: 2,
-      color: { dark: '#00004d', light: '#FFFFFF' }
+      width: 400, margin: 2,
+      color: { dark: '#0284c7', light: '#FFFFFF' }
     });
-    res.json({ success: true, qr_url: url, qr_image: qrDataUrl, customer_name: c.name });
+    res.json({
+      success: true,
+      qr_url: url,
+      qr_image: qrDataUrl,
+      customer_name: c.name,
+      card_uid: c.card_uid || '',
+      phone: c.phone || '',
+      balance_rs: ((db.wallets[c.id] || 0) / 100).toFixed(2)
+    });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
   }
@@ -838,7 +1053,8 @@ app.get('/api/qr/:customer_id', async (req, res) => {
 // ── Customer payment page info ──
 app.get('/api/pay-info/:customer_id', (req, res) => {
   const db = loadDB();
-  const c  = db.customers.find(x => x.id === req.params.customer_id);
+  const rawId = req.params.customer_id;
+  const c  = db.customers.find(x => x.id === rawId || (x.card_uid && x.card_uid.replace(/\s+/g,'').toUpperCase() === rawId.replace(/\s+/g,'').toUpperCase()));
   if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
   const nameParts = c.name.split(' ');
   const displayName = nameParts[0] + (nameParts[1] ? ' ' + nameParts[1][0] + '.' : '');
@@ -846,10 +1062,24 @@ app.get('/api/pay-info/:customer_id', (req, res) => {
     success: true,
     id: c.id,
     display_name: displayName,
+    full_name: c.name,
+    card_uid: c.card_uid || '',
+    phone: c.phone || '',
     status: c.status,
     balance_rs: ((db.wallets[c.id] || 0) / 100).toFixed(2),
     price_per_litre: (db.price.paise_per_litre / 100).toFixed(2)
   });
+});
+
+// ── Shortcut: /card/:uid opens payment/recharge page directly ──
+app.get('/card/:card_uid', (req, res) => {
+  const db = loadDB();
+  const searchUid = decodeURIComponent(req.params.card_uid || '').replace(/\s+/g, '').toUpperCase();
+  const c = db.customers.find(x => x.card_uid && x.card_uid.replace(/\s+/g, '').toUpperCase() === searchUid);
+  if (c) {
+    return res.redirect(`/pay/${c.id}`);
+  }
+  res.sendFile(path.join(__dirname, 'public', 'pay.html'));
 });
 
 // ── Card Scan Bridge endpoint (PowerShell bridge POSTs here) ──
@@ -902,10 +1132,9 @@ app.get('/shipping', (req, res) => res.sendFile(path.join(__dirname, 'public', '
 
 // ── GET Machine QR Code (Print karne ke liye) ──
 app.get('/api/machine-qr', async (req, res) => {
-  const ip = getServerIP();
   const amt = req.query.amt ? parseInt(req.query.amt) : 0;
   const auto = req.query.auto === '1' || req.query.auto === 'true';
-  let url = `http://${ip}:${PORT}/water`;
+  let url = `https://asha-ro-water.onrender.com/water`;
   let title = "ASHA RO WATER";
   if (amt > 0) {
     url += `?amt=${amt}` + (auto ? '&auto=1' : '');
@@ -922,8 +1151,12 @@ app.get('/api/machine-qr', async (req, res) => {
   }
 });
 
-// ── Root → Admin ──
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// ── Root → Customer Water Storefront & Dispenser Homepage ──
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'water.html')));
+app.get('/water', (req, res) => res.sendFile(path.join(__dirname, 'public', 'water.html')));
+
+// ── Admin Management Panel ──
+app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 // ─── START ────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
