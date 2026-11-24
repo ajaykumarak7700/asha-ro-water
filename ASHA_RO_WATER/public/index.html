@@ -468,7 +468,8 @@ input:focus,select:focus{border-color:var(--blue)}
         <div id="qrModalName" style="font-weight:700;font-size:16px;margin:8px 0"></div>
         <div class="qr-url" id="qrModalUrl"></div>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-          <button class="btn btn-primary" onclick="printQRModal()">🖨️ Print</button>
+          <button class="btn btn-primary" onclick="printQRModal()">🖨️ Print Single</button>
+          <button class="btn btn-warning" onclick="print2SidedCard()">🖨️ Print 2-Sided Card Sticker</button>
           <button class="btn btn-success" onclick="downloadQRModal()">💾 Download</button>
         </div>
       </div>
@@ -844,6 +845,117 @@ function downloadQR(){downloadQRFrom(document.getElementById('qrImage').src,'QR'
 function downloadQRModal(){downloadQRFrom(document.getElementById('qrModalImg').src,'QR');}
 function downloadQRFrom(src, prefix){
   const a=document.createElement('a');a.href=src;a.download=prefix+'_RO_Water.png';a.click();
+}
+
+async function print2SidedCard(cId){
+  const id = cId || (currentQrCustomer && (currentQrCustomer.id || currentQrCustomer.customer_id));
+  if(!id) return alert('Pehle customer chunein');
+
+  const btn = event?.target;
+  const oldText = btn ? btn.textContent : '';
+  if(btn) btn.textContent = '⏳ Loading QRs...';
+
+  const res = await fetch(`/api/customer-card-qrs/${id}`).then(r=>r.json()).catch(()=>null);
+  if(btn) btn.textContent = oldText || '🖨️ Print 2-Sided Card Sticker';
+
+  if(!res || !res.success){
+    return alert('QR generation fail ho gaya: ' + (res ? res.message : 'Network error'));
+  }
+
+  const c = res.customer;
+  const upiQr = res.side1_upi_qr;
+  const passbookQr = res.side2_passbook_qr;
+
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>2-Sided Card Stickers - ${c.name}</title>
+  <style>
+    @page { size: A4 portrait; margin: 10mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background: #f8fafc; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+    .print-bar { background: #0284c7; color: #fff; padding: 12px 24px; border-radius: 10px; margin-bottom: 20px; font-weight: 700; cursor: pointer; border: none; font-size: 15px; }
+    .sheet { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+    
+    .card-sticker {
+      width: 85mm; height: 54mm;
+      border: 1.5mm solid #0284c7;
+      border-radius: 5mm;
+      padding: 3mm 4mm;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 3mm;
+      background: #ffffff;
+      position: relative;
+    }
+    .badge-side {
+      position: absolute;
+      top: 2mm; right: 3mm;
+      background: #0284c7; color: #fff;
+      font-size: 7px; font-weight: 800;
+      padding: 1px 5px; border-radius: 3px;
+    }
+    .info-col { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+    .brand { font-size: 11px; font-weight: 900; color: #0284c7; letter-spacing: 0.3px; text-transform: uppercase; }
+    .loc { font-size: 8px; font-weight: 700; color: #64748b; margin-bottom: 2px; }
+    .c-name { font-size: 11.5px; font-weight: 800; color: #0f172a; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46mm; }
+    .c-uid { font-size: 8.5px; font-family: monospace; font-weight: 800; color: #0369a1; background: #e0f2fe; padding: 1px 4px; border-radius: 3px; display: inline-block; width: fit-content; margin-bottom: 2px; }
+    .rate { font-size: 8px; font-weight: 800; color: #15803d; }
+    .scan-tip { font-size: 7.5px; color: #1e293b; margin-top: 2px; line-height: 1.25; font-weight: 700; }
+    .hl { font-size: 7.5px; font-weight: 800; color: #0284c7; margin-top: 2px; }
+    .qr-col { width: 33mm; height: 33mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .qr-col img { width: 100%; height: 100%; object-fit: contain; border-radius: 3px; }
+
+    @media print {
+      body { background: transparent; padding: 0; }
+      .print-bar { display: none !important; }
+      .sheet { box-shadow: none; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <button class="print-bar" onclick="window.print()">🖨️ PRINT 2-SIDED CARD STICKERS (Ctrl + P)</button>
+  <div class="sheet">
+    <!-- SIDE 1: DIRECT UPI RECHARGE (PHONEPE / GPAY) -->
+    <div class="card-sticker" style="border-color:#16a34a">
+      <div class="badge-side" style="background:#16a34a">FRONT: DIRECT UPI PAY</div>
+      <div class="info-col">
+        <div class="brand" style="color:#16a34a">🚰 ASHA RO WATER</div>
+        <div class="loc">SMART CARD ATM</div>
+        <div class="c-name">👤 ${c.name}</div>
+        <div class="c-uid">UID: ${c.card_uid || 'SMART CARD'}</div>
+        <div class="rate">💧 Rate: ₹1 = 1 Litre</div>
+        <div class="scan-tip" style="color:#15803d">⚡ PhonePe / GPay se scan karke koi bhi amount pay karein — Paisa direct card mein add ho jayega!</div>
+        <div class="hl">📞 7700828989</div>
+      </div>
+      <div class="qr-col">
+        <img src="${upiQr || passbookQr}" alt="Direct UPI QR">
+      </div>
+    </div>
+
+    <!-- SIDE 2: LIVE PASSBOOK & BALANCE ENQUIRY -->
+    <div class="card-sticker" style="border-color:#0284c7">
+      <div class="badge-side">BACK: LIVE PASSBOOK</div>
+      <div class="info-col">
+        <div class="brand">📊 ASHA RO WATER</div>
+        <div class="loc">CARD PASSBOOK & DETAILS</div>
+        <div class="c-name">👤 ${c.name}</div>
+        <div class="c-uid">UID: ${c.card_uid || 'SMART CARD'}</div>
+        <div class="rate">💰 Balance: ₹${c.balance_rs}</div>
+        <div class="scan-tip">📱 Phone Camera se scan karke Live Balance aur Transaction History dekhein!</div>
+        <div class="hl">📞 7700828989</div>
+      </div>
+      <div class="qr-col">
+        <img src="${passbookQr}" alt="Passbook QR">
+      </div>
+    </div>
+  </div>
+  <script>window.onload=()=>{ window.print(); }<\/script>
+</body>
+</html>`);
 }
 
 // ── ADD CUSTOMER ──

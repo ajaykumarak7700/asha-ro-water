@@ -1054,6 +1054,68 @@ app.get('/api/qr/:customer_id', async (req, res) => {
   }
 });
 
+// ── GET 2-Sided QR Codes for Customer RFID Card (Direct UPI + Live Passbook) ──
+app.get('/api/customer-card-qrs/:customer_id', async (req, res) => {
+  try {
+    const db = loadDB();
+    const rawId = req.params.customer_id;
+    const c = db.customers.find(x => x.id === rawId || (x.card_uid && x.card_uid.replace(/\s+/g,'').toUpperCase() === rawId.replace(/\s+/g,'').toUpperCase()));
+    if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
+
+    // 1. Create or fetch Razorpay Direct UPI QR Code (Side 1)
+    if (!c.razorpay_qr_id || !c.razorpay_qr_image) {
+      console.log(`⚡ Generating dedicated Razorpay UPI QR for ${c.name}...`);
+      try {
+        const qr = await razorpay.qrCode.create({
+          type: 'upi_qr',
+          name: c.name.slice(0, 30),
+          usage: 'multiple_use',
+          fixed_amount: false,
+          description: `Card Recharge: ${c.name}`,
+          notes: {
+            type: 'CARD_RECHARGE',
+            card_uid: c.card_uid || '',
+            customer_id: c.id
+          }
+        });
+        c.razorpay_qr_id = qr.id;
+        c.razorpay_qr_image = qr.image_url;
+        saveDB(db);
+        console.log(`✅ Razorpay UPI QR created: ${qr.id} (${qr.image_url})`);
+      } catch (qrErr) {
+        console.error('❌ Razorpay QR create error:', qrErr);
+      }
+    }
+
+    // 2. Generate Web Passbook & Balance Enquiry QR (Side 2)
+    const passbookUrl = `https://asha-ro-water.onrender.com/pay/${c.id}`;
+    const passbookQrDataUrl = await QRCode.toDataURL(passbookUrl, {
+      width: 400, margin: 2,
+      color: { dark: '#0369a1', light: '#FFFFFF' }
+    });
+
+    res.json({
+      success: true,
+      customer: {
+        id: c.id,
+        name: c.name,
+        card_uid: c.card_uid || '',
+        phone: c.phone || '',
+        balance_rs: ((db.wallets[c.id] || 0) / 100).toFixed(2),
+        rate_rs: ((db.price.paise_per_litre || 100) / 100).toFixed(2)
+      },
+      // Side 1: Direct UPI QR (PhonePe / GPay)
+      side1_upi_qr: c.razorpay_qr_image || '',
+      // Side 2: Passbook & Balance Enquiry QR
+      side2_passbook_url: passbookUrl,
+      side2_passbook_qr: passbookQrDataUrl
+    });
+  } catch (err) {
+    console.error('❌ Error in customer-card-qrs:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ── Customer payment page info ──
 app.get('/api/pay-info/:customer_id', (req, res) => {
   const db = loadDB();
