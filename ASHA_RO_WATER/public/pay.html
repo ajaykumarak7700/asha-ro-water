@@ -162,6 +162,13 @@ async function instantWaterDispense(){
     return;
   }
 
+  // If Razorpay Hosted Link exists, redirect directly (100% bypasses domain whitelisting blocks)
+  if (orderRes.payment_link) {
+    showAlert('⏳ Razorpay Secure UPI Page khul raha hai...', 'success');
+    window.location.href = orderRes.payment_link;
+    return;
+  }
+
   // Step 2: Open Official Razorpay UPI Checkout
   const options = {
     key: orderRes.key_id,

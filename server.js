@@ -387,12 +387,34 @@ app.post('/api/razorpay/create-order', async (req, res) => {
     const order = await razorpay.orders.create(options);
     console.log(`💳 Razorpay Order Created: ${order.id} for ₹${amt}`);
 
+    let payment_link = null;
+    try {
+      const pl = await razorpay.paymentLink.create({
+        amount: amount_paise,
+        currency: "INR",
+        accept_partial: false,
+        description: `RO Paani Dispense: Rs ${amt}`,
+        callback_url: `https://asha-ro-water.onrender.com/pay/${customer_id || ''}?dispense=success&amt=${amt}`,
+        callback_method: 'get',
+        notes: {
+          type: 'WATER_DISPENSE',
+          customer_name: customer_name || 'Customer',
+          customer_id: customer_id || 'Instant',
+          order_id: order.id
+        }
+      });
+      payment_link = pl.short_url;
+    } catch(e) {
+      console.warn('Hosted link warning in create-order:', e.message);
+    }
+
     res.json({
       success: true,
       order_id: order.id,
       amount: order.amount,
       currency: order.currency,
-      key_id: RAZORPAY_KEY_ID
+      key_id: RAZORPAY_KEY_ID,
+      payment_link: payment_link
     });
   } catch (error) {
     console.error('❌ Razorpay order error:', error);
@@ -610,12 +632,17 @@ app.post('/api/razorpay/webhook', (req, res) => {
         const db = loadDB();
 
         // 💳 CHECK IF THIS IS A CARD WALLET RECHARGE
-        if (payment.notes?.type === 'CARD_RECHARGE' && payment.notes?.customer_id) {
-          const custId = payment.notes.customer_id;
-          const c = db.customers.find(x => x.id === custId);
+        const qrEntity = req.body.payload?.qr_code?.entity || {};
+        const plinkEntity = req.body.payload?.payment_link?.entity || {};
+        const allNotes = { ...(qrEntity.notes || {}), ...(plinkEntity.notes || {}), ...(payment.notes || {}) };
+
+        if (allNotes.type === 'CARD_RECHARGE' && (allNotes.customer_id || allNotes.card_uid)) {
+          const custId = allNotes.customer_id;
+          const cardUid = (allNotes.card_uid || '').replace(/\s+/g,'').toUpperCase();
+          const c = db.customers.find(x => (custId && x.id === custId) || (cardUid && x.card_uid && x.card_uid.replace(/\s+/g,'').toUpperCase() === cardUid));
           if (c && !db.transactions.find(t => t.payment_ref === payment_id)) {
             const amount_paise = Math.round(amount_rs * 100);
-            db.wallets[custId] = (db.wallets[custId] || 0) + amount_paise;
+            db.wallets[c.id] = (db.wallets[c.id] || 0) + amount_paise;
             db.transactions.unshift({
               id: 'REC_' + payment_id.slice(-8),
               customer_id: c.id,
@@ -623,12 +650,12 @@ app.post('/api/razorpay/webhook', (req, res) => {
               card_uid: c.card_uid || 'CARD',
               type: 'RECHARGE',
               amount_paise: amount_paise,
-              note: `Online UPI Recharge via Razorpay (Webhook, Pay ID: ${payment_id})`,
+              note: `Online UPI Direct Recharge (Pay ID: ${payment_id})`,
               payment_ref: payment_id,
               created_at: nowIST()
             });
             saveDB(db);
-            console.log(`✅ Webhook: Added ₹${amount_rs} recharge to wallet of ${c.name}`);
+            console.log(`✅ Webhook: Added ₹${amount_rs} recharge to wallet of ${c.name} (${c.card_uid})`);
           }
           return res.json({ status: 'ok' });
         }
