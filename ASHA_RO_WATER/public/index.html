@@ -595,6 +595,11 @@ function renderCustomers(list){
           <span class="badge ${isBlocked ? 'badge-blocked' : 'badge-active'}" style="font-weight:700">
             ${isBlocked ? '⛔ BLOCKED' : '✅ ACTIVE'}
           </span>
+          <br>
+          ${c.allow_offline !== false
+            ? `<button class="btn btn-light btn-sm" style="font-size:11px;padding:2px 6px;margin-top:4px;color:#0369a1;background:#e0f2fe;border:1px solid #bae6fd" onclick="toggleOffline('${c.id}')" title="Click to disable offline access">📶 Offline: ON</button>`
+            : `<button class="btn btn-light btn-sm" style="font-size:11px;padding:2px 6px;margin-top:4px;color:#991b1b;background:#fee2e2;border:1px solid #fecaca" onclick="toggleOffline('${c.id}')" title="Click to allow offline access">🚫 Offline: OFF</button>`
+          }
         </td>
         <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-success btn-sm" onclick="openRechargeFor('${c.id}')" title="Recharge Karein">⚡ Recharge</button>
@@ -624,6 +629,11 @@ function renderCards(list){
           <span class="badge ${isBlocked ? 'badge-blocked' : 'badge-active'}" style="font-weight:700">
             ${isBlocked ? '⛔ BLOCKED' : '✅ ACTIVE'}
           </span>
+          <br>
+          ${c.allow_offline !== false
+            ? `<button class="btn btn-light btn-sm" style="font-size:11px;padding:2px 6px;margin-top:4px;color:#0369a1;background:#e0f2fe;border:1px solid #bae6fd" onclick="toggleOffline('${c.id}')" title="Click to disable offline access">📶 Offline: ON</button>`
+            : `<button class="btn btn-light btn-sm" style="font-size:11px;padding:2px 6px;margin-top:4px;color:#991b1b;background:#fee2e2;border:1px solid #fecaca" onclick="toggleOffline('${c.id}')" title="Click to allow offline access">🚫 Offline: OFF</button>`
+          }
         </td>
         <td><button class="btn btn-primary btn-sm" onclick="showQR('${c.id}','${c.name}')">🔳 Print QR</button></td>
         <td style="display:flex;gap:6px;flex-wrap:wrap">
@@ -921,6 +931,17 @@ async function toggleBlock(id){
     loadDashboard();
   } else {
     alert(res ? res.message : 'Error toggling card status');
+  }
+}
+
+// ── 1-CLICK TOGGLE OFFLINE ACCESS ──
+async function toggleOffline(id){
+  const res = await fetch(`/api/customers/${id}/toggle-offline`, { method: 'POST' }).then(r=>r.json());
+  if(res && res.success){
+    alert(res.message);
+    loadCustomers();
+  } else {
+    alert(res ? res.message : 'Error toggling offline permission');
   }
 }
 

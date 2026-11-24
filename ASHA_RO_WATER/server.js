@@ -633,6 +633,96 @@ app.post('/api/machine/complete', (req, res) => {
   res.status(404).json({ success: false, message: 'Order nahi mila' });
 });
 
+// ── ESP32 SYNC: Machine downloads authorized cards & balances for offline security ──
+app.get('/api/machine/sync-cards', (req, res) => {
+  const db = loadDB();
+  const cards = db.customers
+    .filter(c => c.card_uid)
+    .map(c => {
+      const cleanUid = c.card_uid.replace(/\s+/g, '').toUpperCase();
+      const balPaise = db.wallets[c.id] || 0;
+      return {
+        uid: cleanUid,
+        name: c.name,
+        balance_rs: parseFloat((balPaise / 100.0).toFixed(2)),
+        status: c.status || 'active',
+        allow_offline: c.allow_offline !== false // default true
+      };
+    });
+
+  res.json({
+    success: true,
+    price_per_litre_rs: parseFloat((db.price.paise_per_litre / 100.0).toFixed(2)),
+    default_card_litres: parseFloat(db.settings.default_card_litres || 2),
+    cards: cards
+  });
+});
+
+// ── ESP32 OFFLINE SYNC: Machine uploads offline water dispenses to deduct balances ──
+app.post('/api/machine/offline-sync', (req, res) => {
+  const { records } = req.body; // Array of { card_uid, litres, timestamp }
+  if (!records || !Array.isArray(records) || records.length === 0) {
+    return res.json({ success: true, synced_count: 0, message: 'Koi offline record nahi mila' });
+  }
+
+  const db = loadDB();
+  const ratePerLitre = (db.price.paise_per_litre || 100) / 100.0;
+  let synced = 0;
+
+  for (const r of records) {
+    if (!r.card_uid) continue;
+    const cleanUid = r.card_uid.replace(/\s+/g, '').toUpperCase();
+    const c = db.customers.find(x => x.card_uid && x.card_uid.replace(/\s+/g, '').toUpperCase() === cleanUid);
+    const litres = parseFloat(r.litres) || (db.settings.default_card_litres || 2.0);
+    const costPaise = Math.round(litres * ratePerLitre * 100);
+
+    const custId = c ? c.id : 'OFFLINE_' + cleanUid;
+    const custName = c ? c.name : 'Unknown Card (' + cleanUid + ')';
+
+    // Deduct balance if registered
+    if (c) {
+      db.wallets[c.id] = (db.wallets[c.id] || 0) - costPaise;
+    }
+
+    const txnId = 'OFF_' + uuidv4().substring(0, 8).toUpperCase();
+    db.transactions.unshift({
+      id: txnId,
+      customer_id: custId,
+      customer_name: custName,
+      card_uid: c ? c.card_uid : cleanUid,
+      type: 'DISPENSE',
+      amount_paise: costPaise,
+      note: `💧 Offline Dispense (${litres}L auto-synced)`,
+      payment_ref: txnId,
+      created_at: nowIST()
+    });
+    synced++;
+    console.log(`📶 Offline Sync processed: ${custName} -> ${litres}L (-₹${(costPaise/100).toFixed(2)})`);
+  }
+
+  saveDB(db);
+  res.json({
+    success: true,
+    synced_count: synced,
+    message: `✅ ${synced} offline records successfully sync ho gaye!`
+  });
+});
+
+// ── TOGGLE OFFLINE ACCESS PER CUSTOMER ──
+app.post('/api/customers/:id/toggle-offline', (req, res) => {
+  const db = loadDB();
+  const c = db.customers.find(x => x.id === req.params.id);
+  if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
+
+  c.allow_offline = (c.allow_offline === false) ? true : false;
+  saveDB(db);
+  res.json({
+    success: true,
+    allow_offline: c.allow_offline,
+    message: c.allow_offline ? `📶 Offline Access ALLOW (चालू) kar diya gaya!` : `🚫 Offline Access DENIED (बंद) kar diya gaya!`
+  });
+});
+
 // ── GET/POST Machine Settings (Card Default Litres, Price, Razorpay Keys) ──
 app.get('/api/settings', (req, res) => {
   const db = loadDB();
@@ -800,6 +890,15 @@ app.get('/pay', (req, res) => {
 app.get('/pay/:customer_id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'pay.html'));
 });
+
+// ── Razorpay & PayU Mandatory Compliance Pages ──
+app.get('/contact', (req, res) => res.sendFile(path.join(__dirname, 'public', 'contact.html')));
+app.get('/terms', (req, res) => res.sendFile(path.join(__dirname, 'public', 'terms.html')));
+app.get('/privacy', (req, res) => res.sendFile(path.join(__dirname, 'public', 'privacy.html')));
+app.get('/refund', (req, res) => res.sendFile(path.join(__dirname, 'public', 'refund.html')));
+app.get('/about', (req, res) => res.sendFile(path.join(__dirname, 'public', 'about.html')));
+app.get('/delivery', (req, res) => res.sendFile(path.join(__dirname, 'public', 'delivery.html')));
+app.get('/shipping', (req, res) => res.sendFile(path.join(__dirname, 'public', 'delivery.html')));
 
 // ── GET Machine QR Code (Print karne ke liye) ──
 app.get('/api/machine-qr', async (req, res) => {
