@@ -478,67 +478,69 @@ app.post('/api/razorpay/verify-payment', (req, res) => {
   }
 });
 
-// ── Razorpay Webhook (Direct Cloud Capture) ──
+// ── Razorpay Webhook (Direct Cloud Capture for Razorpay QR & Payments) ──
 app.post('/api/razorpay/webhook', (req, res) => {
   try {
-    const secret = RAZORPAY_KEY_SECRET;
-    const shasum = crypto.createHmac('sha256', secret);
-    shasum.update(JSON.stringify(req.body));
-    const digest = shasum.digest('hex');
+    const event = req.body.event;
+    console.log(`🔔 Razorpay Webhook Event: ${event}`);
 
-    // Validate webhook
-    if (digest === req.headers['x-razorpay-signature'] || true) {
-      const event = req.body.event;
-      if (event === 'payment.captured' || event === 'order.paid') {
-        const payment = req.body.payload.payment.entity;
-        const amount_rs = payment.amount / 100.0;
-        const payment_id = payment.id;
+    if (event === 'payment.captured' || event === 'order.paid' || event === 'qr_code.credited') {
+      const payment = req.body.payload?.payment?.entity || {};
+      const amount_rs = (payment.amount || 0) / 100.0;
+      const payment_id = payment.id || ('RZP_' + Date.now());
+      const buyerPhone = payment.contact || payment.notes?.phone || '';
+      let buyerName = payment.notes?.customer_name || payment.notes?.name || 'Razorpay User';
+      if (buyerPhone && buyerName === 'Razorpay User') {
+        buyerName = `User (${buyerPhone})`;
+      }
 
-        console.log(`🔔 Webhook received: ₹${amount_rs} (Pay ID: ${payment_id})`);
+      console.log(`🔔 Razorpay Webhook received: ₹${amount_rs} (Pay ID: ${payment_id}, Phone: ${buyerPhone})`);
 
+      if (amount_rs > 0) {
         const db = loadDB();
-        // Check if already processed
         if (!db.pending_orders.find(o => o.payment_id === payment_id)) {
           const rate_per_litre = (db.price.paise_per_litre || 100) / 100.0;
           const litres = Math.round((amount_rs / rate_per_litre) * 10) / 10;
-          const buyerName = payment.notes?.customer_name || 'Razorpay User';
 
-          const orderId = 'WH_' + payment_id.slice(-8);
+          const orderId = 'RZ_' + payment_id.slice(-8);
           db.pending_orders.push({
             id: orderId,
             amount_rs: amount_rs,
             litres: litres,
             customer_name: buyerName,
+            customer_phone: buyerPhone,
             payment_id: payment_id,
             status: 'pending',
             created_at: nowIST()
           });
 
+          const phoneNote = buyerPhone ? ` (Mob: ${buyerPhone})` : '';
           db.transactions.unshift({
             id: orderId,
-            customer_id: 'WEBHOOK_BUYER',
+            customer_id: 'RAZORPAY_BUYER',
             customer_name: buyerName,
-            card_uid: 'RAZORPAY_WEBHOOK',
+            customer_phone: buyerPhone,
+            card_uid: 'RAZORPAY_QR',
             type: 'DISPENSE',
-            amount_paise: payment.amount,
-            note: `Webhook UPI: ₹${amount_rs} -> ${litres}L Water`,
+            amount_paise: Math.round(amount_rs * 100),
+            note: `Razorpay UPI: ₹${amount_rs} -> ${litres}L Water${phoneNote}`,
             payment_ref: payment_id,
             created_at: nowIST()
           });
 
           saveDB(db);
-          console.log(`🚰 Webhook: Enqueued ${litres}L dispense for machine!`);
+          console.log(`🚰 Razorpay Webhook: Enqueued ${litres}L dispense for machine!`);
         }
       }
     }
     res.json({ status: 'ok' });
   } catch (err) {
-    console.error('Webhook error:', err);
+    console.error('Razorpay Webhook error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// ── Cashfree Webhook (Direct Cloud Capture for Cashfree QR) ──
+// ── Cashfree Webhook (Direct Cloud Capture for Cashfree QR & Forms) ──
 app.post('/api/cashfree/webhook', (req, res) => {
   try {
     const body = req.body || {};
@@ -547,15 +549,22 @@ app.post('/api/cashfree/webhook', (req, res) => {
     let payment_id = null;
     let amount_rs = 0;
     let buyerName = 'Cashfree User';
+    let buyerPhone = '';
 
     if (body.data) {
       payment_id = body.data.payment?.cf_payment_id || body.data.order?.order_id || ('CF_' + Date.now());
       amount_rs = parseFloat(body.data.payment?.payment_amount || body.data.order?.order_amount || 0);
       buyerName = body.data.customer_details?.customer_name || 'Cashfree User';
+      buyerPhone = body.data.customer_details?.customer_phone || body.data.payment?.customer_phone || '';
     } else if (body.orderId || body.referenceId) {
       payment_id = body.referenceId || body.orderId;
       amount_rs = parseFloat(body.orderAmount || 0);
       buyerName = body.customerName || 'Cashfree User';
+      buyerPhone = body.customerPhone || '';
+    }
+
+    if (buyerPhone && (buyerName === 'Cashfree User' || !buyerName)) {
+      buyerName = `User (${buyerPhone})`;
     }
 
     if (amount_rs > 0 && payment_id) {
@@ -571,19 +580,22 @@ app.post('/api/cashfree/webhook', (req, res) => {
           amount_rs: amount_rs,
           litres: litres,
           customer_name: buyerName,
+          customer_phone: buyerPhone,
           payment_id: payment_id,
           status: 'pending',
           created_at: nowIST()
         });
 
+        const phoneNote = buyerPhone ? ` (Mob: ${buyerPhone})` : '';
         db.transactions.unshift({
           id: 'DSP_' + uuidv4().slice(0, 8).toUpperCase(),
           customer_id: 'CASHFREE_BUYER',
           customer_name: buyerName,
+          customer_phone: buyerPhone,
           card_uid: 'CASHFREE_QR',
           type: 'DISPENSE',
           amount_paise: Math.round(amount_rs * 100),
-          note: `Cashfree UPI: ₹${amount_rs} -> ${litres}L Water`,
+          note: `Cashfree UPI: ₹${amount_rs} -> ${litres}L Water${phoneNote}`,
           payment_ref: payment_id,
           created_at: nowIST()
         });
