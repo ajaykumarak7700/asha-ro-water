@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Asha RO Water — Smart Automated Water ATM & Pure Drinking Water</title>
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -102,6 +101,37 @@
   .section-header h2 { font-size: 32px; font-weight: 800; color: var(--dark); margin-top: 6px; }
   .section-header p { font-size: 15px; color: var(--gray); max-width: 600px; margin: 8px auto 0; }
 
+  /* ── PRICING & HOW IT WORKS BOX ── */
+  .pricing-process-grid {
+    display: grid; grid-template-columns: 1fr 1.3fr; gap: 30px; align-items: stretch; margin-top: 20px;
+  }
+  .pricing-card {
+    background: #fff; border-radius: 24px; border: 1px solid var(--border);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.05); padding: 36px 30px; display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .price-tag {
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 12px 18px;
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+  }
+  .price-title { font-size: 16px; font-weight: 700; color: #166534; }
+  .price-amount { font-size: 24px; font-weight: 800; color: #15803d; }
+  .price-sub { font-size: 12px; color: #166534; opacity: 0.8; }
+
+  .process-card {
+    background: linear-gradient(135deg, #0369a1, #0284c7); color: #fff;
+    border-radius: 24px; padding: 36px 32px; box-shadow: 0 15px 35px rgba(2, 132, 199, 0.2);
+  }
+  .process-card h3 { font-size: 24px; font-weight: 800; margin-bottom: 12px; }
+  .process-card p { font-size: 14px; opacity: 0.9; margin-bottom: 24px; }
+  .process-steps { list-style: none; display: flex; flex-direction: column; gap: 18px; }
+  .process-step { display: flex; gap: 16px; align-items: flex-start; }
+  .step-icon {
+    width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 800; flex-shrink: 0;
+  }
+  .step-content h4 { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+  .step-content p { font-size: 13px; opacity: 0.85; line-height: 1.4; margin: 0; }
+
   /* ── FEATURE CARDS ── */
   .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
   .feature-card {
@@ -115,64 +145,6 @@
   }
   .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--dark); }
   .feature-card p { font-size: 14px; color: var(--gray); line-height: 1.5; }
-
-  /* ── INTERACTIVE DISPENSER SECTION ── */
-  .dispenser-box {
-    background: #ffffff; border-radius: 24px; border: 1px solid var(--border);
-    box-shadow: 0 20px 50px rgba(2, 132, 199, 0.08); overflow: hidden;
-    display: grid; grid-template-columns: 1.1fr 1fr; margin-top: 30px;
-  }
-  .dispenser-info { padding: 45px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); display: flex; flex-direction: column; justify-content: center; }
-  .dispenser-info h3 { font-size: 28px; font-weight: 800; color: #0369a1; margin-bottom: 12px; }
-  .dispenser-info p { font-size: 15px; color: #475569; margin-bottom: 24px; line-height: 1.6; }
-  .dispenser-steps { list-style: none; display: flex; flex-direction: column; gap: 14px; }
-  .dispenser-steps li { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 600; color: #1e293b; }
-  .step-num { width: 26px; height: 26px; border-radius: 50%; background: #0284c7; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0; }
-
-  .dispenser-widget { padding: 40px; display: flex; flex-direction: column; justify-content: center; }
-  .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
-  .opt-card {
-    border: 2px solid var(--border); border-radius: 16px; padding: 18px 12px; text-align: center;
-    cursor: pointer; background: #f8fafc; transition: all 0.2s;
-  }
-  .opt-card:hover, .opt-card.selected {
-    border-color: #0284c7; background: #f0f9ff; transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(2, 132, 199, 0.12);
-  }
-  .opt-litres { font-size: 28px; font-weight: 800; color: #0284c7; }
-  .opt-price { font-size: 16px; font-weight: 700; color: #059669; margin-top: 4px; }
-  .opt-sub { font-size: 11px; color: var(--gray); margin-top: 2px; }
-  
-  .custom-row {
-    background: #f1f5f9; border-radius: 12px; padding: 12px 16px;
-    display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
-  }
-  .custom-row label { font-size: 13px; font-weight: 700; color: #475569; }
-  .custom-row input {
-    width: 90px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px;
-    font-size: 16px; font-weight: 800; text-align: center; color: #0f172a; outline: none;
-  }
-
-  .pay-btn {
-    width: 100%; background: linear-gradient(135deg, #059669, #10b981); color: #ffffff;
-    border: none; border-radius: 14px; padding: 16px; font-size: 17px; font-weight: 800;
-    cursor: pointer; box-shadow: 0 10px 25px rgba(5, 150, 105, 0.3);
-    display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s;
-  }
-  .pay-btn:hover { background: linear-gradient(135deg, #047857, #059669); transform: translateY(-1px); }
-  .upi-badges {
-    display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px;
-    font-size: 11px; color: var(--gray); font-weight: 600; flex-wrap: wrap;
-  }
-  .badge { background: #f1f5f9; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; }
-
-  .status-box {
-    margin-top: 16px; padding: 14px; border-radius: 12px; font-size: 14px; font-weight: 600;
-    text-align: center; display: none;
-  }
-  .status-info { background: #e0f2fe; color: #0369a1; display: block; }
-  .status-success { background: #def7ec; color: #03543f; display: block; }
-  .status-error { background: #fde8e8; color: #9b1c1c; display: block; }
 
   /* ── FOOTER ── */
   .footer {
@@ -196,7 +168,7 @@
     .hero h2 { font-size: 30px; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     .features-grid { grid-template-columns: 1fr; }
-    .dispenser-box { grid-template-columns: 1fr; }
+    .pricing-process-grid { grid-template-columns: 1fr; }
     .footer-grid { grid-template-columns: 1fr 1fr; }
     .nav-menu { display: none; }
   }
@@ -214,7 +186,7 @@
     </div>
   </a>
   <ul class="nav-menu">
-    <li><a href="#dispenser">Dispenser</a></li>
+    <li><a href="#rates">Tariff & Process</a></li>
     <li><a href="#features">Purity Standards</a></li>
     <li><a href="/about">About Us</a></li>
     <li><a href="/contact">Contact</a></li>
@@ -230,7 +202,7 @@
   <h2>Shuddh & Swasth Peene Ka Paani,<br>Ab 24 Ghante Aapke Dwar Par</h2>
   <p>Asha RO Water Smart Automated Water ATM brings 100% pure, lab-tested, and mineral-enriched drinking water directly to Banwariya and Kushinagar communities at only ₹1 per Litre.</p>
   <div class="hero-buttons">
-    <a href="#dispenser" class="btn-hero-primary">🚰 Pani Bharne Ke Liye Pay Karein</a>
+    <a href="#rates" class="btn-hero-primary">🚰 Water ATM Pricing & Process</a>
     <a href="/contact" class="btn-hero-secondary">📞 Contact Us</a>
   </div>
 </section>
@@ -240,75 +212,98 @@
   <div class="stats-grid">
     <div class="stat-item">
       <h3>₹1.00</h3>
-      <p>Per Litre Price</p>
+      <p>Per Litre Rate</p>
     </div>
     <div class="stat-item">
       <h3>24x7</h3>
-      <p>Automated Dispensing</p>
+      <p>Automated Dispenser</p>
     </div>
     <div class="stat-item">
       <h3>100%</h3>
-      <p>Contactless UPI & Card</p>
+      <p>Touchless UPI QR & Card</p>
     </div>
     <div class="stat-item">
       <h3>7-Stage</h3>
-      <p>Purification (RO+UV)</p>
+      <p>RO + UV Purification</p>
     </div>
   </div>
 </div>
 
-<!-- LIVE DISPENSER & STOREFRONT SECTION -->
-<div class="section-container" id="dispenser">
+<!-- TARIFF & DISPENSING PROCESS SECTION -->
+<div class="section-container" id="rates">
   <div class="section-header">
-    <span>ONLINE DISPENSER STOREFRONT</span>
-    <h2>Instant Paani Dispense Karein</h2>
-    <p>Apna container nozzle ke neeche rakhein, quantity select karein aur PhonePe / Google Pay / Paytm se pay karein. Machine turant paani bhar degi!</p>
+    <span>TRANSPARENT TARIFF & ATM PROCESS</span>
+    <h2>Water ATM Rates & Dispensing Guide</h2>
+    <p>Machine par jakar paani nikaalna behad aasan aur surakshit hai. Kisi bhi UPI App (PhonePe, GPay, Paytm) se QR scan karein ya RFID card tap karein.</p>
   </div>
 
-  <div class="dispenser-box">
-    <div class="dispenser-info">
-      <h3>🚰 Smart Automatic Water ATM</h3>
-      <p>Aapke dwara online pay karte hi hamara automated microcontroller system turant machine ko trigger karta hai aur accurate flow-meter ke sath paani bharta hai.</p>
-      <ul class="dispenser-steps">
-        <li><span class="step-num">1</span> Bottle ya Jar ko dispensing nozzle ke niche rakhein</li>
-        <li><span class="step-num">2</span> 10L (₹10) ya 20L (₹20) select karke UPI pay karein</li>
-        <li><span class="step-num">3</span> Buzzer bajega aur motor automatic chalu ho jayegi!</li>
-      </ul>
+  <div class="pricing-process-grid">
+    <!-- Pricing Column -->
+    <div class="pricing-card">
+      <div>
+        <h3 style="font-size: 22px; font-weight: 800; color: #0f172a; margin-bottom: 8px;">Water Tariff Rates</h3>
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 20px;">Affordable, pure & mineral-enriched drinking water for every household.</p>
+
+        <div class="price-tag">
+          <div>
+            <div class="price-title">10 Litre Drinking Water</div>
+            <div class="price-sub">For Medium Jars & Containers</div>
+          </div>
+          <div class="price-amount">₹10.00</div>
+        </div>
+
+        <div class="price-tag" style="background: #eff6ff; border-color: #bfdbfe;">
+          <div>
+            <div class="price-title" style="color: #1e40af;">20 Litre Commercial Jar</div>
+            <div class="price-sub" style="color: #1e40af;">Full 20L Family / Commercial Jar</div>
+          </div>
+          <div class="price-amount" style="color: #1d4ed8;">₹20.00</div>
+        </div>
+
+        <div class="price-tag" style="background: #fdf4ff; border-color: #f5d0fe;">
+          <div>
+            <div class="price-title" style="color: #86198f;">Standard Per Litre Rate</div>
+            <div class="price-sub" style="color: #86198f;">Accurate Digital Flow Measurement</div>
+          </div>
+          <div class="price-amount" style="color: #a21caf;">₹1.00 / L</div>
+        </div>
+      </div>
+
+      <div style="background: #f8fafc; border-radius: 12px; padding: 14px; border: 1px solid #e2e8f0; font-size: 12px; color: #64748b; margin-top: 15px;">
+        💳 <strong>RFID Smart Card Users:</strong> Regular customers can get a rechargeable Smart Card from the plant for instant water dispensing without a mobile phone.
+      </div>
     </div>
 
-    <div class="dispenser-widget">
-      <div class="options-grid">
-        <div class="opt-card selected" id="card10" onclick="chooseQty(10, 10)">
-          <div class="opt-litres">10L</div>
-          <div class="opt-price">₹10.00</div>
-          <div class="opt-sub">10 Litre Paani</div>
-        </div>
-        <div class="opt-card" id="card20" onclick="chooseQty(20, 20)">
-          <div class="opt-litres">20L</div>
-          <div class="opt-price">₹20.00</div>
-          <div class="opt-sub">20 Litre Commercial Jar</div>
-        </div>
-      </div>
+    <!-- Process Guide Column -->
+    <div class="process-card">
+      <h3>Kaise Kaam Karta Hai? (3 Easy Steps)</h3>
+      <p>RO Water ATM machine par paani lene ke aasan 3 niyam:</p>
 
-      <div class="custom-row">
-        <label>Custom Litres / Amount (₹):</label>
-        <input type="number" id="amtInput" value="10" min="5" max="200" oninput="manualAmt()">
-      </div>
+      <ul class="process-steps">
+        <li class="process-step">
+          <div class="step-icon">1</div>
+          <div class="step-content">
+            <h4>Jar Nozzle Ke Niche Rakhein</h4>
+            <p>Apna saaf Jar ya Bottle dispensing tap ke theek niche rakhein.</p>
+          </div>
+        </li>
 
-      <button class="pay-btn" id="payBtn" onclick="startUPIPayment()">
-        <span>📲 Pay with UPI</span>
-        <span id="btnAmtLabel">(₹10)</span>
-      </button>
+        <li class="process-step">
+          <div class="step-icon">2</div>
+          <div class="step-content">
+            <h4>Machine Par Laga UPI QR Scan Karein Ya Card Tap Karein</h4>
+            <p>PhonePe, Google Pay, ya Paytm se machine par chipka QR code scan karein aur amount pay karein (ya Smart Card tap karein).</p>
+          </div>
+        </li>
 
-      <div class="upi-badges">
-        <span class="badge">Google Pay</span>
-        <span class="badge">PhonePe</span>
-        <span class="badge">Paytm</span>
-        <span class="badge">BHIM UPI</span>
-        <span class="badge">Cards / NetBanking</span>
-      </div>
-
-      <div id="statusBox" class="status-box"></div>
+        <li class="process-step">
+          <div class="step-icon">3</div>
+          <div class="step-content">
+            <h4>Automatic Pani Bhar Jayega!</h4>
+            <p>Machine ka buzzer bajega aur motor accurate 10L ya 20L paani nikaal kar automatic band ho jayegi.</p>
+          </div>
+        </li>
+      </ul>
     </div>
   </div>
 </div>
@@ -371,7 +366,7 @@
         <li><a href="/about">About Us</a></li>
         <li><a href="/contact">Contact Support</a></li>
         <li><a href="#features">Water Purity Standards</a></li>
-        <li><a href="#dispenser">Online Dispenser</a></li>
+        <li><a href="#rates">Water Tariff & Process</a></li>
       </ul>
     </div>
 
@@ -389,7 +384,6 @@
       <h4>Portal Access</h4>
       <ul>
         <li><a href="/admin" onclick="return handleAdminLogin(event)">🔐 Admin / Operator Login</a></li>
-        <li><a href="/pay">💳 Customer Passbook</a></li>
         <li><a href="/contact">Grievance Redressal</a></li>
       </ul>
     </div>
@@ -397,149 +391,11 @@
 
   <div class="footer-bottom">
     <div>&copy; 2026 Asha RO Water (Asha Digital Center). All rights reserved.</div>
-    <div>Secure Online Payments powered by Razorpay & PayU</div>
+    <div>Automated Water ATM System powered by Asha Digital Center</div>
   </div>
 </footer>
 
 <script>
-let selectedLitres = 10;
-let selectedAmount = 10;
-let ratePerLitre = 1;
-
-const urlParams = new URLSearchParams(window.location.search);
-const paramAmt = parseInt(urlParams.get('amt'), 10);
-const autoTrigger = urlParams.get('auto') === '1' || urlParams.get('auto') === 'true';
-
-async function init() {
-  try {
-    const res = await fetch('/api/price').then(r => r.json());
-    if (res && res.success) {
-      ratePerLitre = parseFloat(res.rs_per_litre) || 1;
-    }
-  } catch(e) {}
-
-  if (paramAmt && paramAmt > 0) {
-    selectedAmount = paramAmt;
-    selectedLitres = Math.round(paramAmt / ratePerLitre);
-    document.getElementById('amtInput').value = selectedAmount;
-    updateUI();
-  }
-
-  if (autoTrigger) {
-    showStatus(`⏳ UPI khul raha hai (₹${selectedAmount})...`, 'info');
-    setTimeout(() => { startUPIPayment(); }, 400);
-  }
-}
-
-function chooseQty(litres, amt) {
-  selectedLitres = litres;
-  selectedAmount = amt;
-  document.getElementById('amtInput').value = amt;
-  updateUI();
-}
-
-function manualAmt() {
-  const v = parseFloat(document.getElementById('amtInput').value) || 0;
-  selectedAmount = v;
-  selectedLitres = Math.round(v / ratePerLitre);
-  updateUI();
-}
-
-function updateUI() {
-  document.querySelectorAll('.opt-card').forEach(c => c.classList.remove('selected'));
-  if (selectedAmount === 10) document.getElementById('card10').classList.add('selected');
-  if (selectedAmount === 20) document.getElementById('card20').classList.add('selected');
-  document.getElementById('btnAmtLabel').textContent = `(₹${selectedAmount} = ${selectedLitres}L)`;
-}
-
-async function startUPIPayment() {
-  if (!selectedAmount || selectedAmount < 5) {
-    showStatus('❌ Kripya kam se kam ₹5 ka amount chunein.', 'error');
-    return;
-  }
-
-  showStatus(`⏳ UPI Payment shuru ho raha hai...`, 'info');
-  const payBtn = document.getElementById('payBtn');
-  payBtn.disabled = true;
-
-  try {
-    const orderRes = await fetch('/api/razorpay/create-order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount_rs: selectedAmount })
-    }).then(r => r.json());
-
-    if (!orderRes || !orderRes.success) {
-      showStatus('❌ Order create nahi ho saka: ' + (orderRes.message || 'Error'), 'error');
-      payBtn.disabled = false;
-      return;
-    }
-
-    const options = {
-      key: orderRes.key_id,
-      amount: orderRes.amount,
-      currency: "INR",
-      name: "ASHA RO WATER",
-      description: `${selectedLitres} Litre Water (₹${selectedAmount})`,
-      order_id: orderRes.order_id,
-      handler: async function (response) {
-        showStatus('⏳ Payment verify ho rahi hai... Machine ko nirdesh bhej rahe hain...', 'info');
-        
-        const verifyRes = await fetch('/api/razorpay/verify-payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_signature: response.razorpay_signature,
-            amount_rs: selectedAmount
-          })
-        }).then(r => r.json()).catch(() => null);
-
-        if (verifyRes && verifyRes.success) {
-          showStatus(`🎉 ₹${selectedAmount} Payment Successful!<br><br>🚰 <b>Machine ${verifyRes.litres} Liter Paani Bhar Rahi Hai!</b><br>Kripya bartan nozzle ke niche rakhein.`, 'success');
-          payBtn.style.display = 'none';
-        } else {
-          showStatus('❌ Verification mein problem aayi: ' + (verifyRes ? verifyRes.message : 'Timeout'), 'error');
-          payBtn.disabled = false;
-        }
-      },
-      prefill: {
-        name: "Asha Water Customer",
-        contact: "9876543210"
-      },
-      notes: {
-        type: "WATER_DISPENSE",
-        litres: selectedLitres
-      },
-      theme: { color: "#0284c7" },
-      modal: {
-        ondismiss: function() {
-          showStatus('⚠️ Payment cancel kar diya gaya. Dobara koshish karein.', 'error');
-          payBtn.disabled = false;
-        }
-      }
-    };
-
-    const rzp = new Razorpay(options);
-    rzp.on('payment.failed', function (resp) {
-      showStatus('❌ Payment Fail ho gaya: ' + resp.error.description, 'error');
-      payBtn.disabled = false;
-    });
-    rzp.open();
-
-  } catch(err) {
-    showStatus('❌ Connection error: ' + err.message, 'error');
-    payBtn.disabled = false;
-  }
-}
-
-function showStatus(msg, type) {
-  const box = document.getElementById('statusBox');
-  box.className = 'status-box status-' + type;
-  box.innerHTML = msg;
-}
-
 function handleAdminLogin(e) {
   if (e) e.preventDefault();
   const pin = prompt("🔐 Admin / Operator PIN Dalein:");
@@ -551,8 +407,6 @@ function handleAdminLogin(e) {
   }
   return false;
 }
-
-init();
 </script>
 </body>
 </html>
