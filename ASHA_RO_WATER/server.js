@@ -65,7 +65,25 @@ if (Pool && process.env.DATABASE_URL) {
   }
 }
 
-// ─── DATA FOLDER & PERSISTENCE ─────────────────────────────
+// ─── ADMIN AUTHENTICATION CONFIGURATION ────────────────────
+const ADMIN_USER = process.env.ADMIN_USER || '7700828989';
+const ADMIN_PASS = process.env.ADMIN_PASS || 'Ajay@6341#';
+const activeAdminTokens = new Set();
+
+function generateAdminToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function verifyAdmin(req) {
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (token && (activeAdminTokens.has(token) || token === ADMIN_PASS)) return true;
+
+  const bodyPass = req.body?.admin_pin || req.body?.admin_pass;
+  if (bodyPass && (bodyPass === ADMIN_PASS || activeAdminTokens.has(bodyPass))) return true;
+
+  return false;
+}
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE  = path.join(DATA_DIR, 'db.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -163,6 +181,35 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+
+// ── Admin Login Endpoint (Server-Side Secure) ──
+app.post('/api/admin/login', (req, res) => {
+  const { username, password } = req.body || {};
+  if (username === ADMIN_USER && password === ADMIN_PASS) {
+    const token = generateAdminToken();
+    activeAdminTokens.add(token);
+    console.log(`🔐 Admin login successful for user: ${username}`);
+    return res.json({ success: true, token, message: '✅ लॉगिन सफल!' });
+  }
+  console.warn(`⚠️ Failed admin login attempt for user: ${username}`);
+  return res.status(401).json({ success: false, message: '❌ ग़लत यूजर आईडी या पासवर्ड!' });
+});
+
+// ── Admin Check Session Endpoint ──
+app.get('/api/admin/check-session', (req, res) => {
+  if (verifyAdmin(req)) {
+    return res.json({ success: true, user: ADMIN_USER });
+  }
+  return res.status(401).json({ success: false, message: 'सत्र समाप्त' });
+});
+
+// ── Admin Logout Endpoint ──
+app.post('/api/admin/logout', (req, res) => {
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (token) activeAdminTokens.delete(token);
+  res.json({ success: true, message: 'लॉगआउट सफल' });
+});
 
 // ─── GET LOCAL NETWORK IP ───────────────────────────────────
 function getServerIP() {
@@ -322,9 +369,9 @@ app.get('/api/customers/:id/history', (req, res) => {
 
 // ── POST recharge wallet (Admin/Driver) ──
 app.post('/api/recharge', (req, res) => {
-  const { customer_id, amount_rs, note, admin_pin } = req.body;
-  if (admin_pin !== '1234')
-    return res.status(403).json({ success: false, message: '❌ Galat Admin PIN!' });
+  const { customer_id, amount_rs, note } = req.body;
+  if (!verifyAdmin(req))
+    return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
 
   const amount_paise = Math.round((parseFloat(amount_rs) || 0) * 100);
   if (amount_paise <= 0)
@@ -1125,9 +1172,9 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', (req, res) => {
-  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, admin_pin } = req.body;
-  if (admin_pin !== '1234') {
-    return res.status(403).json({ success: false, message: '❌ Galat Admin PIN!' });
+  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret } = req.body;
+  if (!verifyAdmin(req)) {
+    return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
   }
   const db = loadDB();
   if (default_card_litres !== undefined) {
@@ -1196,9 +1243,9 @@ app.get('/api/price', (req, res) => {
 });
 
 app.post('/api/price', (req, res) => {
-  const { rs_per_litre, admin_pin } = req.body;
-  if (admin_pin !== '1234')
-    return res.status(403).json({ success: false, message: '❌ Galat Admin PIN!' });
+  const { rs_per_litre } = req.body;
+  if (!verifyAdmin(req))
+    return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
   const db = loadDB();
   db.price.paise_per_litre = Math.round((parseFloat(rs_per_litre) || 1) * 100);
   saveDB(db);
@@ -1464,13 +1511,10 @@ initDatabase().then(() => {
     console.log('\n╔══════════════════════════════════════════════════╗');
     console.log('║    🚰  ASHA RO WATER - Server Started!            ║');
     console.log('╠══════════════════════════════════════════════════╣');
-    console.log(`║  Computer: http://localhost:${PORT}                ║`);
-    console.log(`║  Mobile:   http://${ip}:${PORT}            ║`);
-    console.log('║                                                  ║');
-    console.log('║  Admin Panel  → http://' + ip + ':' + PORT + '/         ║');
+    console.log(`║  Port:        ${PORT}                               ║`);
+    console.log('║  Admin Portal → https://asha-ro-water.onrender.com/admin║');
     console.log('║  Customer QR  → /pay/<customer_id>               ║');
-    console.log('║  Admin PIN    → 1234                             ║');
-    console.log('║  Data saved   → data/db.json (PostgreSQL Cloud)  ║');
+    console.log('║  Data Saved   → Supabase Cloud PostgreSQL DB     ║');
     console.log('╚══════════════════════════════════════════════════╝\n');
   });
 }).catch(err => {
