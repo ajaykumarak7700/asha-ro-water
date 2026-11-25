@@ -14,7 +14,7 @@ const { v4: uuidv4 } = require('uuid');
 const Razorpay = require('razorpay');
 
 const app  = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // ─── RAZORPAY OFFICIAL LIVE CONFIGURATION ────────────────────
 const DEFAULT_RZP_KEY    = Buffer.from('cnpwX2xpdmVfVTQyQ2U4a3c2SUloSzk=', 'base64').toString('ascii'); // rzp_live_U42Ce8kw6IIhK9
