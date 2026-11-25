@@ -44,33 +44,113 @@ function initRazorpayFromDB() {
 // ─── IN-MEMORY: Last scanned card (bridge se aata hai) ──────
 let lastScannedCard = { uid: null, scanned_at: null };
 
-// ─── DATA FOLDER ───────────────────────────────────────────
+// ─── POSTGRESQL CLOUD DATABASE CONFIGURATION ───────────────
+const { Pool } = require('pg');
+let pgPool = null;
+
+if (process.env.DATABASE_URL) {
+  try {
+    pgPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
+    });
+    console.log('🐘 PostgreSQL Cloud Database detected from DATABASE_URL!');
+  } catch (pgErr) {
+    console.error('❌ Failed to initialize pgPool:', pgErr.message);
+  }
+}
+
+// ─── DATA FOLDER & PERSISTENCE ─────────────────────────────
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE  = path.join(DATA_DIR, 'db.json');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-// ─── DB FUNCTIONS (JSON based) ──────────────────────────────
-function loadDB() {
+let memoryDB = null;
+
+function loadDiskDB() {
   if (!fs.existsSync(DB_FILE)) {
     const empty = {
       customers: [],
-      wallets: {},        // { customer_id: balance_paise }
+      wallets: {},
       transactions: [],
-      price: { paise_per_litre: 100 },   // 1 Rs = 100 paise
+      price: { paise_per_litre: 100 },
       settings: { default_card_litres: 20 },
-      pending_orders: []
+      pending_orders: [],
+      cashback_wallets: {}
     };
-    fs.writeFileSync(DB_FILE, JSON.stringify(empty, null, 2));
+    try { fs.writeFileSync(DB_FILE, JSON.stringify(empty, null, 2)); } catch(e){}
     return empty;
   }
-  const db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-  if (!db.settings) db.settings = { default_card_litres: 20 };
-  if (!db.pending_orders) db.pending_orders = [];
-  return db;
+  try {
+    const db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    if (!db.settings) db.settings = { default_card_litres: 20 };
+    if (!db.pending_orders) db.pending_orders = [];
+    if (!db.cashback_wallets) db.cashback_wallets = {};
+    return db;
+  } catch(e) {
+    console.error('Error reading db.json:', e.message);
+    return { customers: [], wallets: {}, transactions: [], price: { paise_per_litre: 100 }, settings: { default_card_litres: 20 }, pending_orders: [], cashback_wallets: {} };
+  }
+}
+
+function loadDB() {
+  if (memoryDB) return memoryDB;
+  memoryDB = loadDiskDB();
+  return memoryDB;
 }
 
 function saveDB(db) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  memoryDB = db;
+  // 1. Save to local disk cache
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  } catch (e) {
+    console.error('Disk save error:', e.message);
+  }
+  // 2. Save asynchronously to PostgreSQL Cloud Database
+  if (pgPool) {
+    pgPool.query(
+      `INSERT INTO app_state (key, data, updated_at) VALUES ($1, $2, NOW())
+       ON CONFLICT (key) DO UPDATE SET data = $2, updated_at = NOW()`,
+      ['asha_ro_water_db', db]
+    ).catch(err => {
+      console.error('❌ PostgreSQL Cloud save error:', err.message);
+    });
+  }
+}
+
+async function initDatabase() {
+  if (pgPool) {
+    try {
+      await pgPool.query(`
+        CREATE TABLE IF NOT EXISTS app_state (
+          key VARCHAR(50) PRIMARY KEY,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      const res = await pgPool.query("SELECT data FROM app_state WHERE key = 'asha_ro_water_db'");
+      if (res.rows.length > 0 && res.rows[0].data) {
+        memoryDB = res.rows[0].data;
+        if (!memoryDB.settings) memoryDB.settings = { default_card_litres: 20 };
+        if (!memoryDB.pending_orders) memoryDB.pending_orders = [];
+        if (!memoryDB.cashback_wallets) memoryDB.cashback_wallets = {};
+        console.log(`✅ Loaded persistent database from PostgreSQL Cloud! (${memoryDB.customers?.length || 0} customers)`);
+        try { fs.writeFileSync(DB_FILE, JSON.stringify(memoryDB, null, 2)); } catch(e){}
+      } else {
+        const initial = loadDiskDB();
+        await pgPool.query("INSERT INTO app_state (key, data) VALUES ($1, $2)", ['asha_ro_water_db', initial]);
+        memoryDB = initial;
+        console.log(`🚀 Initialized PostgreSQL Cloud Database with ${initial.customers?.length || 0} initial customers!`);
+      }
+    } catch(err) {
+      console.error('❌ PostgreSQL connection error:', err.message);
+      memoryDB = loadDiskDB();
+    }
+  } else {
+    memoryDB = loadDiskDB();
+  }
+  initRazorpayFromDB();
 }
 
 // ─── MIDDLEWARE ─────────────────────────────────────────────
@@ -1373,17 +1453,24 @@ app.get('/water', (req, res) => res.sendFile(path.join(__dirname, 'public', 'wat
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 // ─── START ────────────────────────────────────────────────────
-app.listen(PORT, '0.0.0.0', () => {
-  const ip = getServerIP();
-  console.log('\n╔══════════════════════════════════════════════════╗');
-  console.log('║    🚰  ASHA RO WATER - Server Started!            ║');
-  console.log('╠══════════════════════════════════════════════════╣');
-  console.log(`║  Computer: http://localhost:${PORT}                ║`);
-  console.log(`║  Mobile:   http://${ip}:${PORT}            ║`);
-  console.log('║                                                  ║');
-  console.log('║  Admin Panel  → http://' + ip + ':' + PORT + '/         ║');
-  console.log('║  Customer QR  → /pay/<customer_id>               ║');
-  console.log('║  Admin PIN    → 1234                             ║');
-  console.log('║  Data saved   → data/db.json                     ║');
-  console.log('╚══════════════════════════════════════════════════╝\n');
+initDatabase().then(() => {
+  app.listen(PORT, '0.0.0.0', () => {
+    const ip = getServerIP();
+    console.log('\n╔══════════════════════════════════════════════════╗');
+    console.log('║    🚰  ASHA RO WATER - Server Started!            ║');
+    console.log('╠══════════════════════════════════════════════════╣');
+    console.log(`║  Computer: http://localhost:${PORT}                ║`);
+    console.log(`║  Mobile:   http://${ip}:${PORT}            ║`);
+    console.log('║                                                  ║');
+    console.log('║  Admin Panel  → http://' + ip + ':' + PORT + '/         ║');
+    console.log('║  Customer QR  → /pay/<customer_id>               ║');
+    console.log('║  Admin PIN    → 1234                             ║');
+    console.log('║  Data saved   → data/db.json (PostgreSQL Cloud)  ║');
+    console.log('╚══════════════════════════════════════════════════╝\n');
+  });
+}).catch(err => {
+  console.error('Fatal startup error in initDatabase:', err);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server started in fallback mode on port ${PORT}`);
+  });
 });
