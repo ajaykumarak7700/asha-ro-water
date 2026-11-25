@@ -252,8 +252,7 @@
     "paise_per_litre": 100
   },
   "settings": {
-    "default_card_litres": 1,
-    "razorpay_key_id": "rzp_test_U3anZUPDlpExK2"
+    "default_card_litres": 1
   },
   "pending_orders": [],
   "cashback_wallets": {
