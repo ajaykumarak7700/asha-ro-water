@@ -41,8 +41,39 @@ function initRazorpayFromDB() {
   }
 }
 
-// ─── IN-MEMORY: Last scanned card (bridge se aata hai) ──────
+// ─── IN-MEMORY: Last scanned & unregistered cards ──────
 let lastScannedCard = { uid: null, scanned_at: null };
+let unregisteredCards = []; // [{ uid, scanned_at, time_str }]
+
+function formatUID(raw) {
+  if (!raw) return '';
+  const clean = raw.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const chunks = clean.match(/.{1,2}/g);
+  return chunks ? chunks.join(' ') : raw.toUpperCase().trim();
+}
+
+function recordUnregisteredCard(rawUid) {
+  const uid = formatUID(rawUid);
+  if (!uid || uid.length < 4) return null;
+  const db = loadDB();
+  const searchUid = uid.replace(/\s+/g, '').toUpperCase();
+  const exists = db.customers.some(c => c.card_uid && c.card_uid.replace(/\s+/g, '').toUpperCase() === searchUid);
+  if (exists) return null; // Already registered, ignore
+
+  const now = Date.now();
+  const time_str = nowIST();
+
+  lastScannedCard = { uid, scanned_at: now };
+
+  // Remove duplicate if already in list
+  unregisteredCards = unregisteredCards.filter(c => c.uid.replace(/\s+/g, '') !== searchUid);
+  const entry = { uid, scanned_at: now, time_str };
+  unregisteredCards.unshift(entry);
+  if (unregisteredCards.length > 15) unregisteredCards.pop();
+
+  console.log(`🚨 UNREGISTERED CARD DETECTED: [${uid}] at ${time_str}`);
+  return entry;
+}
 
 // ─── POSTGRESQL CLOUD DATABASE CONFIGURATION ───────────────
 let Pool = null;
@@ -256,8 +287,9 @@ app.get('/api/card/:uid', (req, res) => {
   const searchUid = rawParam.replace(/\s+/g, '').toUpperCase();
   const c = db.customers.find(x => x.card_uid && x.card_uid.replace(/\s+/g, '').toUpperCase() === searchUid);
   if (!c) {
+    const unreg = recordUnregisteredCard(rawParam);
     console.log(`⚠️ Card not found for UID: "${rawParam}" (clean: "${searchUid}")`);
-    return res.status(404).json({ success: false, message: 'Card registered nahi hai' });
+    return res.status(404).json({ success: false, message: 'Card registered nahi hai', unreg_card: unreg });
   }
   res.json({
     success: true,
@@ -298,6 +330,10 @@ app.post('/api/customers', (req, res) => {
       card_uid: uid, type: 'RECHARGE', amount_paise: opening,
       note: 'Opening Balance', payment_ref: null, created_at: nowIST()
     });
+  }
+  if (uid) {
+    const cleanAdd = uid.replace(/\s+/g, '').toUpperCase();
+    unregisteredCards = unregisteredCards.filter(x => x.uid.replace(/\s+/g, '') !== cleanAdd);
   }
   saveDB(db);
   res.json({ success: true, id, message: 'Customer register ho gaya!' });
@@ -1191,6 +1227,10 @@ app.post('/api/settings', (req, res) => {
   if (razorpay_key_secret && razorpay_key_secret.trim() && !razorpay_key_secret.includes('•')) {
     db.settings.razorpay_key_secret = razorpay_key_secret.trim();
   }
+  if (uid) {
+    const cleanAdd = uid.replace(/\s+/g, '').toUpperCase();
+    unregisteredCards = unregisteredCards.filter(x => x.uid.replace(/\s+/g, '') !== cleanAdd);
+  }
   saveDB(db);
   initRazorpayFromDB();
 
@@ -1428,13 +1468,33 @@ app.get('/card/:card_uid', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'pay.html'));
 });
 
-// ── Card Scan Bridge endpoint (PowerShell bridge POSTs here) ──
+// ── Card Scan Bridge endpoint (PowerShell bridge & ESP32 POST here) ──
 app.post('/api/card-scan', (req, res) => {
   const uid = (req.body.uid || '').toUpperCase().trim();
   if (!uid) return res.status(400).json({ success: false, message: 'UID nahi mila' });
-  lastScannedCard = { uid, scanned_at: Date.now() };
-  console.log(`📡 Card Scanned via bridge: ${uid}`);
-  res.json({ success: true, uid });
+  const unreg = recordUnregisteredCard(uid);
+  console.log(`📡 Card Scanned via bridge/machine: ${uid}`);
+  res.json({ success: true, uid, unreg });
+});
+
+// ── GET list of recent unregistered cards (for Admin Live Alert) ──
+app.get('/api/unregistered-cards', (req, res) => {
+  const db = loadDB();
+  const registeredSet = new Set(db.customers.filter(c => c.card_uid).map(c => c.card_uid.replace(/\s+/g, '').toUpperCase()));
+  // Filter out any card that got registered
+  const activeUnregistered = unregisteredCards.filter(u => !registeredSet.has(u.uid.replace(/\s+/g, '')));
+  res.json({
+    success: true,
+    latest: activeUnregistered[0] || null,
+    cards: activeUnregistered
+  });
+});
+
+// ── DELETE / dismiss an unregistered card from queue ──
+app.delete('/api/unregistered-cards/:uid', (req, res) => {
+  const target = (req.params.uid || '').replace(/\s+/g, '').toUpperCase();
+  unregisteredCards = unregisteredCards.filter(u => u.uid.replace(/\s+/g, '') !== target);
+  res.json({ success: true });
 });
 
 // ── Frontend polls this to get latest scanned card ──

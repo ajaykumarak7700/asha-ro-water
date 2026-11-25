@@ -141,6 +141,25 @@ input:focus,select:focus{border-color:var(--blue)}
   </div>
 
   <div class="main">
+    <!-- UNREGISTERED CARD LIVE DETECTED BANNER -->
+    <div id="unregisteredAlertBanner" style="display:none;background:#fff1f2;border-bottom:2px solid #e11d48;padding:12px 24px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);position:sticky;top:0;z-index:100;animation:slideDown 0.3s ease-out">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font-size:26px;display:inline-block;animation:pulse 1s infinite">🚨</span>
+          <div>
+            <div style="font-size:13px;font-weight:800;color:#9f1239;text-transform:uppercase;letter-spacing:0.5px">⚠️ नया अनरजिस्टर्ड कार्ड मशीन पर स्कैन हुआ!</div>
+            <div style="font-size:14px;color:#4c0519;margin-top:2px">
+              Card UID: <strong id="detectedUidText" style="font-family:monospace;font-size:16px;background:#fecdd3;padding:2px 8px;border-radius:6px;letter-spacing:1.5px;color:#881337">--</strong>
+              <span id="detectedTimeText" style="font-size:12px;color:#9f1239;margin-left:8px;font-weight:500"></span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="btn btn-success btn-sm" onclick="registerDetectedCard()" style="font-weight:700;padding:8px 16px;font-size:13px;box-shadow:0 2px 4px rgba(5,122,85,0.3)">➕ Add This Card (ग्राहक का नाम जोड़ें)</button>
+          <button class="btn btn-light btn-sm" onclick="dismissDetectedCard()" style="padding:8px 12px;color:#9f1239;background:#ffe4e6">✕ Dismiss</button>
+        </div>
+      </div>
+    </div>
     <!-- TOPBAR -->
     <div class="topbar">
       <h1 id="pageTitle">📊 Dashboard</h1>
@@ -1089,6 +1108,67 @@ async function print2SidedCard(cId){
 let scanInterval = null;
 let lastSeenUID  = null;
 
+// ─── UNREGISTERED CARD LIVE ALERT & AUTO-FILL ───────────────
+let currentDetectedUid = null;
+let lastSeenDetectedUid = null;
+
+async function checkUnregisteredCards() {
+  if (!getAdminToken()) return;
+  try {
+    const res = await fetch('/api/unregistered-cards').then(r => r.json());
+    if (res.success && res.latest && res.latest.uid) {
+      const banner = document.getElementById('unregisteredAlertBanner');
+      currentDetectedUid = res.latest.uid;
+      
+      const addModal = document.getElementById('addModal');
+      const addCardInput = document.getElementById('addCard');
+      if (addModal && addModal.classList.contains('show') && (!addCardInput.value || addCardInput.value === '')) {
+        cardScanned(currentDetectedUid);
+      }
+
+      document.getElementById('detectedUidText').textContent = currentDetectedUid;
+      document.getElementById('detectedTimeText').textContent = res.latest.time_str ? `(${res.latest.time_str})` : '';
+      banner.style.display = 'block';
+
+      if (currentDetectedUid !== lastSeenDetectedUid) {
+        lastSeenDetectedUid = currentDetectedUid;
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.setValueAtTime(880, ctx.currentTime);
+          gain.gain.setValueAtTime(0.12, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.18);
+        } catch(e) {}
+      }
+    } else {
+      document.getElementById('unregisteredAlertBanner').style.display = 'none';
+      currentDetectedUid = null;
+    }
+  } catch(e) {}
+}
+
+function registerDetectedCard(uid) {
+  const cardUid = uid || currentDetectedUid;
+  if (!cardUid) return;
+  openAddCustomer();
+  cardScanned(cardUid);
+  document.getElementById('unregisteredAlertBanner').style.display = 'none';
+}
+
+async function dismissDetectedCard() {
+  if (currentDetectedUid) {
+    await fetch('/api/unregistered-cards/' + encodeURIComponent(currentDetectedUid), { method: 'DELETE' }).catch(()=>{});
+  }
+  document.getElementById('unregisteredAlertBanner').style.display = 'none';
+  currentDetectedUid = null;
+}
+
+setInterval(checkUnregisteredCards, 3000);
+
 function openAddCustomer(){
   document.getElementById('addModal').classList.add('show');
   clearScan();
@@ -1158,7 +1238,14 @@ async function submitAddCustomer(){
   };
   if(!body.name){showAlert('addAlert','Naam zaroori hai!','error');return;}
   const res = await fetch('/api/customers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
-  if(res.success){closeModal('addModal');loadCustomers();loadDashboard();['addName','addPhone','addAddr','addCard'].forEach(id=>document.getElementById(id).value='');document.getElementById('addBal').value=0;}
+  if(res.success){
+    closeModal('addModal');
+    dismissDetectedCard();
+    loadCustomers();
+    loadDashboard();
+    ['addName','addPhone','addAddr','addCard'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('addBal').value=0;
+  }
   else showAlert('addAlert',res.message,'error');
 }
 
