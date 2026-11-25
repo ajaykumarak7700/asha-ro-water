@@ -45,10 +45,15 @@ function initRazorpayFromDB() {
 let lastScannedCard = { uid: null, scanned_at: null };
 
 // ─── POSTGRESQL CLOUD DATABASE CONFIGURATION ───────────────
-const { Pool } = require('pg');
+let Pool = null;
+try {
+  Pool = require('pg').Pool;
+} catch (e) {
+  console.warn('⚠️ pg module not found, fallback to disk storage');
+}
 let pgPool = null;
 
-if (process.env.DATABASE_URL) {
+if (Pool && process.env.DATABASE_URL) {
   try {
     pgPool = new Pool({
       connectionString: process.env.DATABASE_URL,
