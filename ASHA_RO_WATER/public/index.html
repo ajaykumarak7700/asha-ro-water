@@ -818,12 +818,19 @@ function printQRFrom(src, url){
     }
     .info-col { flex: 1; display: flex; flex-direction: column; justify-content: center; }
     .brand { font-size: 11px; font-weight: 900; color: #0284c7; letter-spacing: 0.3px; text-transform: uppercase; }
-    .loc { font-size: 8px; font-weight: 700; color: #64748b; margin-bottom: 3px; }
+    .loc { font-size: 7.5px; font-weight: 700; color: #64748b; margin-bottom: 2px; }
     .c-name { font-size: 11px; font-weight: 800; color: #0f172a; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 44mm; }
-    .c-uid { font-size: 8.5px; font-family: monospace; font-weight: 800; color: #0369a1; background: #e0f2fe; padding: 1px 4px; border-radius: 3px; display: inline-block; width: fit-content; margin-bottom: 3px; }
-    .rate { font-size: 8px; font-weight: 800; color: #15803d; }
-    .scan-tip { font-size: 7px; color: #475569; margin-top: 2px; line-height: 1.2; font-weight: 600; }
-    .hl { font-size: 7.5px; font-weight: 800; color: #0284c7; margin-top: 2px; }
+    .c-uid { font-size: 8.5px; font-family: monospace; font-weight: 800; color: #0369a1; background: #e0f2fe; padding: 1px 4px; border-radius: 3px; display: inline-block; width: fit-content; margin-bottom: 2px; }
+    .action-banner { font-size: 8px; font-weight: 900; background: #16a34a; color: #fff; padding: 1.5px 5px; border-radius: 3px; display: inline-block; margin: 1px 0; letter-spacing: 0.3px; }
+    .upi-logos { display: flex; gap: 2px; flex-wrap: wrap; margin: 1.5px 0; }
+    .upi-tag { font-size: 6.5px; font-weight: 800; padding: 1px 3.5px; border-radius: 2px; color: #fff; }
+    .tag-pp { background: #5f259f; }
+    .tag-gp { background: #1a73e8; }
+    .tag-ptm { background: #002e6e; }
+    .tag-upi { background: #008444; }
+    .rate { font-size: 7.5px; font-weight: 800; color: #15803d; }
+    .scan-tip { font-size: 7px; color: #475569; margin-top: 1px; line-height: 1.2; font-weight: 700; }
+    .hl { font-size: 7.5px; font-weight: 800; color: #0284c7; margin-top: 1px; }
     .qr-col { width: 33mm; height: 33mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .qr-col img { width: 100%; height: 100%; object-fit: contain; border-radius: 3px; }
     @media print {
@@ -838,7 +845,13 @@ function printQRFrom(src, url){
       <div class="loc">SMART CARD ATM</div>
       <div class="c-name">👤 ${custName}</div>
       ${cardUid ? `<div class="c-uid">UID: ${cardUid}</div>` : ''}
-      <div class="rate">💧 Rate: ₹1 = 1 Litre</div>
+      <div class="action-banner">⚡ SCAN & RECHARGE</div>
+      <div class="upi-logos">
+        <span class="upi-tag tag-pp">PhonePe</span>
+        <span class="upi-tag tag-gp">GPay</span>
+        <span class="upi-tag tag-ptm">Paytm</span>
+        <span class="upi-tag tag-upi">UPI</span>
+      </div>
       <div class="scan-tip">Scan QR via PhonePe / GPay to Recharge Card</div>
       <div class="hl">📞 7700828989</div>
     </div>
@@ -910,12 +923,19 @@ async function print2SidedCard(cId){
     }
     .info-col { flex: 1; display: flex; flex-direction: column; justify-content: center; }
     .brand { font-size: 11px; font-weight: 900; color: #0284c7; letter-spacing: 0.3px; text-transform: uppercase; }
-    .loc { font-size: 8px; font-weight: 700; color: #64748b; margin-bottom: 2px; }
+    .loc { font-size: 7.5px; font-weight: 700; color: #64748b; margin-bottom: 2px; }
     .c-name { font-size: 11.5px; font-weight: 800; color: #0f172a; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46mm; }
     .c-uid { font-size: 8.5px; font-family: monospace; font-weight: 800; color: #0369a1; background: #e0f2fe; padding: 1px 4px; border-radius: 3px; display: inline-block; width: fit-content; margin-bottom: 2px; }
+    .action-banner { font-size: 8px; font-weight: 900; background: #16a34a; color: #fff; padding: 1.5px 5px; border-radius: 3px; display: inline-block; margin: 1.5px 0 1px; letter-spacing: 0.3px; }
+    .upi-logos { display: flex; gap: 2.5px; flex-wrap: wrap; margin: 1.5px 0; }
+    .upi-tag { font-size: 6.5px; font-weight: 800; padding: 1px 3.5px; border-radius: 2px; color: #fff; }
+    .tag-pp { background: #5f259f; }
+    .tag-gp { background: #1a73e8; }
+    .tag-ptm { background: #002e6e; }
+    .tag-upi { background: #008444; }
     .rate { font-size: 8px; font-weight: 800; color: #15803d; }
-    .scan-tip { font-size: 7.5px; color: #1e293b; margin-top: 2px; line-height: 1.25; font-weight: 700; }
-    .hl { font-size: 7.5px; font-weight: 800; color: #0284c7; margin-top: 2px; }
+    .scan-tip { font-size: 7px; color: #1e293b; margin-top: 1px; line-height: 1.25; font-weight: 700; }
+    .hl { font-size: 7.5px; font-weight: 800; color: #0284c7; margin-top: 1.5px; }
     .qr-col { width: 33mm; height: 33mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .qr-col img { width: 100%; height: 100%; object-fit: contain; border-radius: 3px; }
 
@@ -931,14 +951,20 @@ async function print2SidedCard(cId){
   <div class="sheet">
     <!-- SIDE 1: DIRECT UPI RECHARGE (PHONEPE / GPAY) -->
     <div class="card-sticker" style="border-color:#16a34a">
-      <div class="badge-side" style="background:#16a34a">FRONT: DIRECT UPI PAY</div>
+      <div class="badge-side" style="background:#16a34a">FRONT: SCAN & RECHARGE</div>
       <div class="info-col">
         <div class="brand" style="color:#16a34a">🚰 ASHA RO WATER</div>
-        <div class="loc">SMART CARD ATM</div>
+        <div class="loc">SMART CARD ATM • BANWARIYA</div>
         <div class="c-name">👤 ${c.name}</div>
         <div class="c-uid">UID: ${c.card_uid || 'SMART CARD'}</div>
-        <div class="rate">💧 Rate: ₹1 = 1 Litre</div>
-        <div class="scan-tip" style="color:#15803d">⚡ PhonePe / GPay se scan karke koi bhi amount pay karein — Paisa direct card mein add ho jayega!</div>
+        <div class="action-banner">⚡ SCAN & RECHARGE</div>
+        <div class="upi-logos">
+          <span class="upi-tag tag-pp">PhonePe</span>
+          <span class="upi-tag tag-gp">GPay</span>
+          <span class="upi-tag tag-ptm">Paytm</span>
+          <span class="upi-tag tag-upi">BHIM UPI</span>
+        </div>
+        <div class="scan-tip" style="color:#15803d">Direct UPI se scan karke recharge karein!</div>
         <div class="hl">📞 7700828989</div>
       </div>
       <div class="qr-col">
@@ -948,14 +974,15 @@ async function print2SidedCard(cId){
 
     <!-- SIDE 2: LIVE PASSBOOK & BALANCE ENQUIRY -->
     <div class="card-sticker" style="border-color:#0284c7">
-      <div class="badge-side">BACK: LIVE PASSBOOK</div>
+      <div class="badge-side" style="background:#0284c7">BACK: LIVE PASSBOOK</div>
       <div class="info-col">
         <div class="brand">📊 ASHA RO WATER</div>
-        <div class="loc">CARD PASSBOOK & DETAILS</div>
+        <div class="loc">PASSBOOK & BALANCE ENQUIRY</div>
         <div class="c-name">👤 ${c.name}</div>
         <div class="c-uid">UID: ${c.card_uid || 'SMART CARD'}</div>
-        <div class="rate">💰 Balance: ₹${c.balance_rs}</div>
-        <div class="scan-tip">📱 Phone Camera se scan karke Live Balance aur Transaction History dekhein!</div>
+        <div class="action-banner" style="background:#0284c7">📱 LIVE PASSBOOK & BALANCE</div>
+        <div class="rate" style="color:#0284c7;font-size:7.5px;font-weight:800">💧 हर 20L पर ₹1 कैशबैक</div>
+        <div class="scan-tip">Mobile Camera se scan karke Live Balance dekhein!</div>
         <div class="hl">📞 7700828989</div>
       </div>
       <div class="qr-col">

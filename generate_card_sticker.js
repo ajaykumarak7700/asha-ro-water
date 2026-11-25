@@ -7,13 +7,13 @@ async function make() {
   const passbookUrl = 'https://asha-ro-water.onrender.com/pay/6d0324fb-094c-463a-80ba-87753ee08adc';
   
   const frontQrData = await QRCode.toDataURL(upiUrl, {
-    width: 400,
+    width: 450,
     margin: 2,
     color: { dark: '#15803d', light: '#FFFFFF' }
   });
 
   const backQrData = await QRCode.toDataURL(passbookUrl, {
-    width: 400,
+    width: 450,
     margin: 2,
     color: { dark: '#0284c7', light: '#FFFFFF' }
   });
@@ -56,11 +56,20 @@ async function make() {
     .info-col { flex: 1; display: flex; flex-direction: column; justify-content: center; }
     .brand { font-size: 11px; font-weight: 900; color: #16a34a; letter-spacing: 0.3px; text-transform: uppercase; }
     .loc { font-size: 7.5px; font-weight: 700; color: #64748b; margin-bottom: 2px; }
-    .c-name { font-size: 12px; font-weight: 900; color: #0f172a; margin-bottom: 2px; }
+    .c-name { font-size: 12px; font-weight: 900; color: #0f172a; margin-bottom: 1.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 44mm; }
     .c-uid { font-size: 8.5px; font-family: monospace; font-weight: 800; color: #0369a1; background: #e0f2fe; padding: 1px 4px; border-radius: 3px; display: inline-block; width: fit-content; margin-bottom: 2px; }
-    .rate { font-size: 8px; font-weight: 800; color: #15803d; }
-    .scan-tip { font-size: 7.5px; color: #0f172a; margin-top: 2px; line-height: 1.25; font-weight: 700; }
-    .hl { font-size: 7.5px; font-weight: 800; color: #0284c7; margin-top: 2px; }
+    
+    .action-banner { font-size: 8px; font-weight: 900; background: #16a34a; color: #fff; padding: 1.5px 5px; border-radius: 3px; display: inline-block; margin: 1.5px 0 1px; letter-spacing: 0.3px; }
+    .upi-logos { display: flex; gap: 2.5px; flex-wrap: wrap; margin: 1.5px 0; }
+    .upi-tag { font-size: 6.5px; font-weight: 800; padding: 1px 3.5px; border-radius: 2px; color: #fff; }
+    .tag-pp { background: #5f259f; }
+    .tag-gp { background: #1a73e8; }
+    .tag-ptm { background: #002e6e; }
+    .tag-upi { background: #008444; }
+
+    .rate { font-size: 7.5px; font-weight: 800; color: #15803d; }
+    .scan-tip { font-size: 7px; color: #0f172a; margin-top: 1px; line-height: 1.25; font-weight: 700; }
+    .hl { font-size: 7.5px; font-weight: 800; color: #0284c7; margin-top: 1.5px; }
     .qr-col { width: 33mm; height: 33mm; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .qr-col img { width: 100%; height: 100%; object-fit: contain; border-radius: 3px; }
 
@@ -76,21 +85,27 @@ async function make() {
 
   <div class="instructions">
     <b>💡 Card Par Kaise Chipkayein:</b><br>
-    • <b>FRONT SIDE (Green):</b> PhonePe / Google Pay / Paytm Direct UPI QR! Isse scan karne par koi browser link nahi khulega, seedhe PhonePe/GPay me ₹10, ₹20, ₹50 daal kar pay hoga aur card me balance jud jayega.<br>
-    • <b>BACK SIDE (Blue):</b> Live Passbook & Balance Enquiry QR! Mobile camera se scan karke bacha hua balance aur transactions dekh sakte hain.
+    • <b>FRONT SIDE (Green):</b> Direct PhonePe / Google Pay / Paytm QR! Isse scan karne par koi browser link nahi khulega, seedhe PhonePe/GPay me koi bhi amount daal kar pay hoga aur card me balance jud jayega.<br>
+    • <b>BACK SIDE (Blue):</b> Live Passbook & Balance Enquiry QR! Mobile camera se scan karke live balance aur transactions dekh sakte hain.
   </div>
 
   <div class="sheet">
     <!-- FRONT SIDE: DIRECT UPI PAYMENT (NO LINK) -->
     <div class="card-sticker" style="border-color:#16a34a">
-      <div class="badge-side" style="background:#16a34a">FRONT: DIRECT UPI PAY</div>
+      <div class="badge-side" style="background:#16a34a">FRONT: SCAN & RECHARGE</div>
       <div class="info-col">
         <div class="brand" style="color:#16a34a">🚰 ASHA RO WATER</div>
         <div class="loc">SMART CARD ATM • BANWARIYA</div>
         <div class="c-name">👤 AJAY KUSHWAHA</div>
         <div class="c-uid">UID: 9E 52 FD 03</div>
-        <div class="rate">💧 1 रुपये = 1 लीटर RO पानी</div>
-        <div class="scan-tip" style="color:#15803d">⚡ <b>PhonePe / GPay se scan karein</b><br>Direct amount daal kar recharge karein!</div>
+        <div class="action-banner">⚡ SCAN & RECHARGE</div>
+        <div class="upi-logos">
+          <span class="upi-tag tag-pp">PhonePe</span>
+          <span class="upi-tag tag-gp">GPay</span>
+          <span class="upi-tag tag-ptm">Paytm</span>
+          <span class="upi-tag tag-upi">BHIM UPI</span>
+        </div>
+        <div class="scan-tip" style="color:#15803d">Direct UPI se scan karke recharge karein!</div>
         <div class="hl">📞 7700828989</div>
       </div>
       <div class="qr-col">
@@ -106,8 +121,9 @@ async function make() {
         <div class="loc">PASSBOOK & BALANCE ENQUIRY</div>
         <div class="c-name">👤 AJAY KUSHWAHA</div>
         <div class="c-uid">UID: 9E 52 FD 03</div>
-        <div class="rate" style="color:#0284c7">📱 Mobile Camera se scan karein</div>
-        <div class="scan-tip">Live Balance aur Transaction Passbook dekhne ke liye scan karein.</div>
+        <div class="action-banner" style="background:#0284c7">📱 LIVE PASSBOOK & BALANCE</div>
+        <div class="rate" style="color:#0284c7;font-size:7.5px;font-weight:800">💧 हर 20L पर ₹1 कैशबैक</div>
+        <div class="scan-tip">Mobile Camera se scan karke Live Balance dekhein!</div>
         <div class="hl">📞 7700828989</div>
       </div>
       <div class="qr-col">
