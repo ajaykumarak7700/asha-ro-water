@@ -1137,6 +1137,8 @@ app.get('/api/qr/:customer_id', async (req, res) => {
     });
     res.json({
       success: true,
+      id: c.id,
+      customer_id: c.id,
       qr_url: url,
       qr_image: qrDataUrl,
       customer_name: c.name,

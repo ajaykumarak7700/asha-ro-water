@@ -304,7 +304,8 @@ input:focus,select:focus{border-color:var(--blue)}
               <img id="qrImage" src="" alt="QR Code">
               <div class="qr-url" id="qrUrl"></div>
               <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-                <button class="btn btn-primary" onclick="printQR()">🖨️ Print</button>
+                <button class="btn btn-primary" onclick="printQR()">🖨️ Print Single</button>
+                <button class="btn btn-warning" onclick="print2SidedCard()">🖨️ Print 2-Sided Card Sticker</button>
                 <button class="btn btn-success" onclick="downloadQR()">💾 Download</button>
               </div>
             </div>
@@ -627,7 +628,8 @@ function renderCustomers(list){
           </button>
           <button class="btn btn-primary btn-sm" onclick="openHistory('${c.id}')" title="Passbook & Transactions">📜 History</button>
           <button class="btn btn-light btn-sm" onclick="openEdit('${c.id}')" title="Edit Customer">✏️</button>
-          ${c.card_uid ? `<button class="btn btn-light btn-sm" onclick="showQR('${c.id}','${c.name}')" title="Print QR">🔳</button>` : ''}
+          ${c.card_uid ? `<button class="btn btn-warning btn-sm" onclick="print2SidedCard('${c.id}')" title="Print 2-Sided Card Sticker">🖨️ 2-Sided</button>` : ''}
+          ${c.card_uid ? `<button class="btn btn-light btn-sm" onclick="showQR('${c.id}','${c.name}')" title="Print Single QR">🔳</button>` : ''}
         </td>
       </tr>`;
   }).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--muted)">Koi customer nahi mila</td></tr>';
@@ -654,7 +656,10 @@ function renderCards(list){
             : `<button class="btn btn-light btn-sm" style="font-size:11px;padding:2px 6px;margin-top:4px;color:#991b1b;background:#fee2e2;border:1px solid #fecaca" onclick="toggleOffline('${c.id}')" title="Click to allow offline access">🚫 Offline: OFF</button>`
           }
         </td>
-        <td><button class="btn btn-primary btn-sm" onclick="showQR('${c.id}','${c.name}')">🔳 Print QR</button></td>
+        <td>
+          <button class="btn btn-warning btn-sm" onclick="print2SidedCard('${c.id}')" title="Print 2-Sided Sticker">🖨️ 2-Sided</button>
+          <button class="btn btn-light btn-sm" onclick="showQR('${c.id}','${c.name}')" title="Print Single QR">🔳 Single</button>
+        </td>
         <td style="display:flex;gap:6px;flex-wrap:wrap">
           <button class="btn btn-success btn-sm" onclick="openRechargeFor('${c.id}')">⚡ Recharge</button>
           <button class="btn ${isBlocked ? 'btn-success' : 'btn-danger'} btn-sm" onclick="toggleBlock('${c.id}')">
@@ -760,6 +765,8 @@ async function loadQR(){
   if(!id){document.getElementById('qrOutput').style.display='none';document.getElementById('qrPlaceholder').style.display='block';return;}
   const res = await fetch(`/api/qr/${id}`).then(r=>r.json());
   if(res.success){
+    res.id = id;
+    res.customer_id = id;
     document.getElementById('qrImage').src = res.qr_image;
     document.getElementById('qrUrl').textContent = res.qr_url;
     document.getElementById('qrOutput').style.display='block';
@@ -771,6 +778,8 @@ async function loadQR(){
 async function showQR(id, name){
   const res = await fetch(`/api/qr/${id}`).then(r=>r.json());
   if(res.success){
+    res.id = id;
+    res.customer_id = id;
     document.getElementById('qrModalImg').src = res.qr_image;
     document.getElementById('qrModalName').textContent = name;
     document.getElementById('qrModalUrl').textContent = res.qr_url;
@@ -848,7 +857,8 @@ function downloadQRFrom(src, prefix){
 }
 
 async function print2SidedCard(cId){
-  const id = cId || (currentQrCustomer && (currentQrCustomer.id || currentQrCustomer.customer_id));
+  const selVal = document.getElementById('qrCustomerSelect')?.value;
+  const id = cId || (currentQrCustomer && (currentQrCustomer.id || currentQrCustomer.customer_id)) || selVal;
   if(!id) return alert('Pehle customer chunein');
 
   const btn = event?.target;
