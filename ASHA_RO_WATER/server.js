@@ -163,11 +163,14 @@ function saveDB(db) {
   }
   // 2. Save asynchronously to PostgreSQL Cloud Database
   if (pgPool) {
+    const jsonStr = JSON.stringify(db);
     pgPool.query(
-      `INSERT INTO app_state (key, data, updated_at) VALUES ($1, $2, NOW())
-       ON CONFLICT (key) DO UPDATE SET data = $2, updated_at = NOW()`,
-      ['asha_ro_water_db', db]
-    ).catch(err => {
+      `INSERT INTO app_state (key, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET data = $2::jsonb, updated_at = NOW()`,
+      ['asha_ro_water_db', jsonStr]
+    ).then(() => {
+      console.log(`💾 Successfully saved state to Supabase Cloud! (${db.customers ? db.customers.length : 0} customers)`);
+    }).catch(err => {
       console.error('❌ PostgreSQL Cloud save error:', err.message);
     });
   }
@@ -184,18 +187,22 @@ async function initDatabase() {
         )
       `);
       const res = await pgPool.query("SELECT data FROM app_state WHERE key = 'asha_ro_water_db'");
-      if (res.rows.length > 0 && res.rows[0].data) {
+      if (res.rows.length > 0 && res.rows[0].data && res.rows[0].data.customers && res.rows[0].data.customers.length > 0) {
         memoryDB = res.rows[0].data;
         if (!memoryDB.settings) memoryDB.settings = { default_card_litres: 20 };
         if (!memoryDB.pending_orders) memoryDB.pending_orders = [];
         if (!memoryDB.cashback_wallets) memoryDB.cashback_wallets = {};
-        console.log(`✅ Loaded persistent database from PostgreSQL Cloud! (${memoryDB.customers?.length || 0} customers)`);
+        console.log(`✅ Loaded persistent database from PostgreSQL Cloud! (${memoryDB.customers.length} customers)`);
         try { fs.writeFileSync(DB_FILE, JSON.stringify(memoryDB, null, 2)); } catch(e){}
       } else {
         const initial = loadDiskDB();
-        await pgPool.query("INSERT INTO app_state (key, data) VALUES ($1, $2)", ['asha_ro_water_db', initial]);
+        await pgPool.query(
+          `INSERT INTO app_state (key, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+           ON CONFLICT (key) DO UPDATE SET data = $2::jsonb, updated_at = NOW()`,
+          ['asha_ro_water_db', JSON.stringify(initial)]
+        );
         memoryDB = initial;
-        console.log(`🚀 Initialized PostgreSQL Cloud Database with ${initial.customers?.length || 0} initial customers!`);
+        console.log(`🚀 Initialized PostgreSQL Cloud Database with ${initial.customers ? initial.customers.length : 0} initial customers!`);
       }
     } catch(err) {
       console.error('❌ PostgreSQL connection error:', err.message);
@@ -261,6 +268,41 @@ function nowIST() {
 // ══════════════════════════════════════════════════════════════
 //  API ROUTES
 // ══════════════════════════════════════════════════════════════
+
+// ── Health & Database Cloud Status Endpoint ──
+app.get('/api/cloud-status', async (req, res) => {
+  let pgStatus = 'disconnected';
+  let pgError = null;
+  let pgCount = 0;
+  let pgCustomers = [];
+  if (pgPool) {
+    try {
+      const qRes = await pgPool.query("SELECT data FROM app_state WHERE key = 'asha_ro_water_db'");
+      if (qRes.rows.length > 0 && qRes.rows[0].data) {
+        pgStatus = 'connected';
+        pgCount = qRes.rows[0].data.customers ? qRes.rows[0].data.customers.length : 0;
+        pgCustomers = qRes.rows[0].data.customers ? qRes.rows[0].data.customers.map(c => ({ name: c.name, uid: c.card_uid })) : [];
+      } else {
+        pgStatus = 'empty_table';
+      }
+    } catch(e) {
+      pgStatus = 'query_error';
+      pgError = e.message;
+    }
+  } else {
+    pgStatus = 'no_pool (DATABASE_URL missing or Pool failed)';
+  }
+  res.json({
+    success: true,
+    has_db_url: !!process.env.DATABASE_URL,
+    db_url_starts_with: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 15) + '...' : 'none',
+    pg_status: pgStatus,
+    pg_error: pgError,
+    supabase_customers_count: pgCount,
+    supabase_customers: pgCustomers,
+    memory_customers_count: memoryDB ? (memoryDB.customers ? memoryDB.customers.length : 0) : 0
+  });
+});
 
 // ── GET all customers ──
 app.get('/api/customers', (req, res) => {
