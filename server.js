@@ -1123,11 +1123,12 @@ app.post('/api/qr-buy-water', (req, res) => {
   });
 });
 
-// ── HELPER: Check and mark pending orders as expired if machine was offline > 90 seconds ──
+// ── HELPER: Check and mark pending orders as expired if machine was offline > order_expiry_seconds ──
 function checkExpiredOrders(db) {
   if (!db || !db.pending_orders) return false;
   const nowMs = Date.now();
-  const EXPIRE_TIMEOUT_MS = 90 * 1000; // 90 seconds timeout
+  const expSec = parseInt((db.settings && db.settings.order_expiry_seconds) ? db.settings.order_expiry_seconds : 90, 10);
+  const EXPIRE_TIMEOUT_MS = Math.max(15, isNaN(expSec) ? 90 : expSec) * 1000;
   let changed = false;
 
   for (const o of db.pending_orders) {
@@ -1136,9 +1137,9 @@ function checkExpiredOrders(db) {
       if (orderMs && (nowMs - orderMs > EXPIRE_TIMEOUT_MS)) {
         o.status = 'expired';
         o.expired_at = nowIST();
-        o.expire_reason = 'ESP32 Machine Offline / Timeout (Water not dispensed)';
+        o.expire_reason = `ESP32 Machine Offline / Timeout (> ${Math.round(EXPIRE_TIMEOUT_MS/1000)}s)`;
         changed = true;
-        console.log(`⚠️ Order ${o.id} EXPIRED! Machine was offline >90s. Prevented empty floor spill.`);
+        console.log(`⚠️ Order ${o.id} EXPIRED! Machine was offline >${Math.round(EXPIRE_TIMEOUT_MS/1000)}s. Prevented empty floor spill.`);
 
         // Update corresponding transaction so it clearly marks expired
         if (db.transactions) {
@@ -1405,20 +1406,21 @@ app.post('/api/customers/:id/toggle-offline', (req, res) => {
   });
 });
 
-// ── GET/POST Machine Settings (Card Default Litres, Price, Razorpay Keys) ──
+// ── GET/POST Machine Settings (Card Default Litres, Price, Razorpay Keys, Offline Safety Timer) ──
 app.get('/api/settings', (req, res) => {
   const db = loadDB();
   res.json({
     success: true,
     price_per_litre_rs: (db.price.paise_per_litre / 100).toFixed(2),
     default_card_litres: db.settings.default_card_litres || 20,
+    order_expiry_seconds: db.settings.order_expiry_seconds || 90,
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID,
     razorpay_key_secret: db.settings.razorpay_key_secret ? '••••••••••••••••' : '••••••••••••••••'
   });
 });
 
 app.post('/api/settings', (req, res) => {
-  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret } = req.body;
+  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds } = req.body;
   if (!verifyAdmin(req)) {
     return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
   }
@@ -1431,24 +1433,27 @@ app.post('/api/settings', (req, res) => {
     const pL = parseFloat(price_per_litre_rs);
     if (!isNaN(pL) && pL > 0) db.price.paise_per_litre = Math.round(pL * 100);
   }
+  if (order_expiry_seconds !== undefined) {
+    const expSec = parseInt(order_expiry_seconds, 10);
+    if (!isNaN(expSec) && expSec >= 15) {
+      db.settings.order_expiry_seconds = expSec;
+    }
+  }
   if (razorpay_key_id && razorpay_key_id.trim()) {
     db.settings.razorpay_key_id = razorpay_key_id.trim();
   }
   if (razorpay_key_secret && razorpay_key_secret.trim() && !razorpay_key_secret.includes('•')) {
     db.settings.razorpay_key_secret = razorpay_key_secret.trim();
   }
-  if (uid) {
-    const cleanAdd = uid.replace(/\s+/g, '').toUpperCase();
-    unregisteredCards = unregisteredCards.filter(x => x.uid.replace(/\s+/g, '') !== cleanAdd);
-  }
   saveDB(db);
   initRazorpayFromDB();
 
-  console.log(`⚙️ Settings updated: Rate=₹${(db.price.paise_per_litre/100).toFixed(2)}/L, Card Default=${db.settings.default_card_litres}L, Key: ${db.settings.razorpay_key_id || RAZORPAY_KEY_ID}`);
+  console.log(`⚙️ Settings updated: Rate=₹${(db.price.paise_per_litre/100).toFixed(2)}/L, Card Default=${db.settings.default_card_litres}L, Offline Timer=${db.settings.order_expiry_seconds || 90}s, Key: ${db.settings.razorpay_key_id || RAZORPAY_KEY_ID}`);
   res.json({
     success: true,
     message: '✅ Settings update ho gayi!',
     default_card_litres: db.settings.default_card_litres,
+    order_expiry_seconds: db.settings.order_expiry_seconds || 90,
     price_per_litre_rs: (db.price.paise_per_litre / 100).toFixed(2),
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID
   });

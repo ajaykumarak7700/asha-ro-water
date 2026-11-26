@@ -94,7 +94,7 @@
    - Static balance removed so cards remain permanently reusable without re-stickering.
    - Printable directly from Admin Panel or `C:\Users\Dell\Desktop\PRINT_CARD_STICKER_AJAY.html`.
 4. **🛡️ Offline Dispense Protection & Expired Order Refund Control:**
-   - When a customer buys water via QR but the ESP32 is offline/disconnected, orders expire automatically after 90 seconds.
+   - When a customer buys water via QR but the ESP32 is offline/disconnected, orders expire automatically after a configurable safety timer (default 90s, adjustable to 30s, 60s, 90s, 120s directly in Admin Settings).
    - Prevents runaway dispenses (spilling 20L on an empty floor when reconnecting minutes/hours later).
    - Expired orders trigger a red alert card in the Admin Panel (`#expiredOrdersCard`) with sound chime.
    - Admin can view customer name, phone, amount (₹20), and payment ID.
