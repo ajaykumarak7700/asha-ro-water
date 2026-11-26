@@ -134,9 +134,9 @@ void checkWiFiConnection() {
 }
 
 // ═════════════════════════════════════════════════════════════════
-// 💧 DISPENSE WATER PROCESS (Dynamic Litres: 5L, 10L, 20L etc.)
+// 💧 DISPENSE WATER PROCESS (With Dry-Run / Tank Empty Auto-Protection)
 // ═════════════════════════════════════════════════════════════════
-void dispenseWater(String customerName, float litresToDispense) {
+float dispenseWater(String customerName, float litresToDispense) {
   isDispensing = true;
   flowPulseCount = 0;
   unsigned long targetPulses = (unsigned long)(litresToDispense * PULSES_PER_L);
@@ -153,20 +153,47 @@ void dispenseWater(String customerName, float litresToDispense) {
   setMotor(true);
   unsigned long startTime = millis();
   unsigned long lastDisplayUpdate = 0;
+  unsigned long lastPulseTime = millis();
+  unsigned long lastCheckedPulseCount = 0;
 
-  // Maximum safety timeout: 10 minutes
-  unsigned long maxTimeoutMs = 10UL * 60UL * 1000UL;
+  // 🛡️ DRY-RUN / NO-WATER FLOW PROTECTION
+  const unsigned long STARTUP_GRACE_MS = 6000;     // 6 seconds for initial water to reach sensor
+  const unsigned long MID_STALL_TIMEOUT_MS = 5000;  // 5 seconds if flow stops midway (tank dry)
+  bool dryRunDetected = false;
 
   while (flowPulseCount < targetPulses) {
-    // Safety timeout check
-    if (millis() - startTime > maxTimeoutMs) {
+    unsigned long now = millis();
+
+    // Track pulse activity
+    if (flowPulseCount > lastCheckedPulseCount) {
+      lastCheckedPulseCount = flowPulseCount;
+      lastPulseTime = now;
+    }
+
+    // 1. Initial Dry-Run Check: Motor ON for >6s but no pulses detected (<5 pulses)!
+    if (now - startTime > STARTUP_GRACE_MS && flowPulseCount < 5) {
+      dryRunDetected = true;
+      Serial.println("🚨 DRY-RUN DETECTED! No water flow in first 6s. Motor stopped immediately to protect pump!");
+      break;
+    }
+
+    // 2. Midway Tank Empty Check: Water was flowing, but stopped for >5s!
+    if (flowPulseCount >= 5 && (now - lastPulseTime > MID_STALL_TIMEOUT_MS)) {
+      dryRunDetected = true;
+      Serial.println("🚨 TANK EMPTY MIDWAY! Water flow stopped for >5s. Motor stopped to prevent dry running!");
+      break;
+    }
+
+    // 3. Safety timeout: 10 minutes max
+    if (now - startTime > 10UL * 60UL * 1000UL) {
+      dryRunDetected = true;
       Serial.println("⚠️ Safety timeout reached! Stopping motor.");
       break;
     }
 
     // Update screen every 250ms
-    if (millis() - lastDisplayUpdate >= 250) {
-      lastDisplayUpdate = millis();
+    if (now - lastDisplayUpdate >= 250) {
+      lastDisplayUpdate = now;
       float currentLitres = (float)flowPulseCount / PULSES_PER_L;
       int progressPercent = (int)((currentLitres / litresToDispense) * 100.0);
       if (progressPercent > 100) progressPercent = 100;
@@ -207,11 +234,40 @@ void dispenseWater(String customerName, float litresToDispense) {
     yield(); // keep ESP32 watchdog happy
   }
 
-  // Turn Motor OFF
+  // Turn Motor OFF immediately
   setMotor(false);
   isDispensing = false;
+  float actualLitres = (float)flowPulseCount / PULSES_PER_L;
 
-  Serial.println(">>> DISPENSE COMPLETE! MOTOR OFF <<<");
+  if (dryRunDetected) {
+    Serial.println(">>> ❌ DRY RUN: PUMP SHUTDOWN (TANK EMPTY OR MOTOR ERROR) <<<");
+    Serial.print("Actual Litres Dispensed: "); Serial.println(actualLitres, 2);
+
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(6, 4);
+    display.println("! TANK KHALI HAI !");
+    display.drawFastHLine(0, 15, 128, SSD1306_WHITE);
+
+    display.setCursor(4, 20);
+    display.println("Paani Nahi Nikla");
+    display.setCursor(4, 34);
+    display.print("Nikla: ");
+    display.print(actualLitres, 1);
+    display.println(" Litre");
+
+    display.setCursor(4, 48);
+    display.println("Paisa Wapas Hoga");
+    display.display();
+
+    // 4 warning beeps
+    beep(4, 150, 750);
+    delay(4000);
+    return actualLitres;
+  }
+
+  Serial.println(">>> ✅ DISPENSE COMPLETE! MOTOR OFF <<<");
 
   // Success screen
   display.clearDisplay();
@@ -232,6 +288,7 @@ void dispenseWater(String customerName, float litresToDispense) {
   // Long success beep
   beep(1, 1000, 1800);
   delay(3500);
+  return actualLitres;
 }
 
 // ═════════════════════════════════════════════════════════════════
@@ -267,16 +324,17 @@ void checkPendingQROrders() {
       beep(2, 200, 1600);
       delay(2000);
 
-      // Dispense water for QR order
-      dispenseWater(buyerName, orderLitres);
+      // Dispense water for QR order (with Dry-Run Auto-Detection)
+      float actualDispensed = dispenseWater(buyerName, orderLitres);
 
-      // Notify Server Order Completed
+      // Notify Server Order Completed or Failed (Tank Dry / Motor Error)
       HTTPClient doneHttp;
       String doneUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/complete";
       doneHttp.begin(doneUrl);
       doneHttp.addHeader("Content-Type", "application/json");
 
-      String postBody = "{\"order_id\":\"" + orderId + "\",\"actual_litres\":" + String(orderLitres, 1) + "}";
+      String orderStatus = (actualDispensed >= (orderLitres * 0.8)) ? "completed" : "failed_no_water";
+      String postBody = "{\"order_id\":\"" + orderId + "\",\"actual_litres\":" + String(actualDispensed, 1) + ",\"status\":\"" + orderStatus + "\"}";
       doneHttp.POST(postBody);
       doneHttp.end();
     }
@@ -441,7 +499,25 @@ void handleCardScanned(String uid) {
     showScreen("OFFLINE APPROVED", custName, "Naya Bal: Rs." + String(newBal, 1), String(defaultCardLitres, 0) + "L Paani Chalu");
     delay(1200);
 
-    dispenseWater(custName, defaultCardLitres);
+    float actualDispensed = dispenseWater(custName, defaultCardLitres);
+
+    // 🛡️ OFFLINE DRY-RUN REFUND PROTECTION
+    if (actualDispensed < 0.2) {
+      // Tank was completely dry / pump failed: Restore 100% balance in flash memory!
+      prefs.putFloat(("b_" + uidClean).c_str(), localBal);
+      if (offCount >= 0) prefs.putInt("off_count", offCount); // cancel queued deduction
+      showScreen("TANK KHALI HAI!", "Paisa Wapas Hua", "Bal: Rs." + String(localBal, 1), "0L Paani Nikla");
+      beep(3, 200, 700);
+      delay(3000);
+    } else if (actualDispensed < (defaultCardLitres * 0.9)) {
+      // Partial dispense: only charge for what was actually dispensed!
+      float actualCost = actualDispensed * pricePerLitreRs;
+      float correctedBal = localBal - actualCost;
+      prefs.putFloat(("b_" + uidClean).c_str(), correctedBal);
+      prefs.putFloat(("off_l_" + String(offCount)).c_str(), actualDispensed);
+      showScreen("PARTIAL DISPENSE", "Nikla: " + String(actualDispensed, 1) + "L", "Bal: Rs." + String(correctedBal, 1), "Bacha Paisa Refund!");
+      delay(3000);
+    }
     return;
   }
 
@@ -511,7 +587,26 @@ void handleCardScanned(String uid) {
 
           showScreen("PAYMENT SUCCESS", custName, "Bal: Rs." + String(afterBal, 1), String(litresToGive, 0) + "L Approved!");
           delay(1200);
-          dispenseWater(custName, litresToGive);
+          float actualDispensed = dispenseWater(custName, litresToGive);
+
+          // 🛡️ ONLINE DRY-RUN REFUND PROTECTION
+          if (actualDispensed < (litresToGive * 0.9)) {
+            Serial.println("🚨 Dry-Run in Online Mode! Calling server auto-refund...");
+            HTTPClient refHttp;
+            String refUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/card-dispense-refund";
+            refHttp.begin(refUrl);
+            refHttp.addHeader("Content-Type", "application/json");
+            String refData = "{\"card_uid\":\"" + uid + "\",\"deducted_litres\":" + String(litresToGive, 1) + ",\"actual_litres\":" + String(actualDispensed, 1) + "}";
+            refHttp.POST(refData);
+            refHttp.end();
+
+            float restoredBal = balRs - (actualDispensed * (ratePerLitrePaise / 100.0));
+            prefs.putFloat(("b_" + uidClean).c_str(), restoredBal);
+
+            showScreen("TANK KHALI HAI!", "Nikla: " + String(actualDispensed, 1) + "L", "Card Par Refund Hua!", "Bal: Rs." + String(restoredBal, 1));
+            beep(3, 200, 700);
+            delay(3500);
+          }
         } else {
           showScreen("ERROR", "Server dispense fail", "Try again", "");
           beep(3, 150, 600);

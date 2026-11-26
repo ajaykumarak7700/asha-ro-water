@@ -101,6 +101,14 @@
    - Two 1-click action buttons:
      - `[ 💵 Cash Refund Diya ]`: Updates order to `refunded_cash` and records negative amount in ledger.
      - `[ 🚰 Abhi Paani Nikalo ]`: Resets order to pending so ESP32 immediately dispenses water when the customer is ready with their jar.
+5. **🛡️ Flow Sensor Dry-Run Protection (Tank Empty / Motor Fault Auto-Detection):**
+   - During water dispensing, ESP32 monitors flow pulses in real time.
+   - If no water flows in the first 6 seconds (<5 pulses) or flow stalls midway for >5 seconds:
+     - Relay/Motor is turned OFF immediately (Dry-Run Protection, saves pump).
+     - ESP32 OLED displays: `! TANK KHALI HAI ! Paani Nahi Nikla / Paisa Wapas Hoga`.
+     - For RFID cards: In online mode, calls `/api/card-dispense-refund` to auto-credit wallet. In offline mode, flash memory balance is restored immediately.
+     - For QR Payments: Sends `status: "failed_no_water"` to `/api/machine/complete`.
+     - Admin Panel shows `🚨 टंकी खाली / मोटर एरर (0L Nikla)` with 1-click cash refund button.
 
 ---
 

@@ -1181,14 +1181,14 @@ app.get('/api/machine/pending', (req, res) => {
   res.json({ has_order: false });
 });
 
-// ── GET list of expired / offline orders for Admin Dashboard ──
+// ── GET list of expired / offline / dry-run failed orders for Admin Dashboard ──
 app.get('/api/admin/expired-orders', (req, res) => {
   const db = loadDB();
   const changed = checkExpiredOrders(db);
   if (changed) saveDB(db);
 
   const expiredList = (db.pending_orders || [])
-    .filter(o => o.status === 'expired')
+    .filter(o => o.status === 'expired' || o.status === 'failed_no_water')
     .sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
 
   res.json({
@@ -1294,20 +1294,78 @@ app.get('/api/order-status/:id', (req, res) => {
   });
 });
 
-// ── ESP32 confirms order completed ──
+// ── ESP32 confirms order completed or reports failure (No water / Dry-run) ──
 app.post('/api/machine/complete', (req, res) => {
-  const { order_id, actual_litres } = req.body;
+  const { order_id, actual_litres, status, reason } = req.body;
   const db = loadDB();
-  const order = db.pending_orders.find(o => o.id === order_id);
+  const order = (db.pending_orders || []).find(o => o.id === order_id);
   if (order) {
-    order.status = 'completed';
-    order.completed_at = nowIST();
-    order.actual_dispensed_litres = actual_litres || order.litres;
+    const actL = (actual_litres !== undefined) ? parseFloat(actual_litres) : order.litres;
+    order.actual_dispensed_litres = isNaN(actL) ? 0 : actL;
+
+    if (status === 'failed_no_water' || (actL < (order.litres * 0.5) && order.litres >= 1)) {
+      order.status = 'failed_no_water';
+      order.failed_at = nowIST();
+      order.failure_reason = reason || 'Tank khali / Motor error (Dry-run stopped)';
+      console.log(`🚨 Machine reported NO WATER for Order ${order_id}! Motor stopped to protect pump. (Actual: ${order.actual_dispensed_litres}L)`);
+
+      // Update transaction note
+      const txn = db.transactions.find(t => t.id === order_id || (order.payment_id && t.payment_ref === order.payment_id));
+      if (txn && !txn.note.includes('[TANK KHALI/NO WATER]')) {
+        txn.note = `[TANK KHALI / MOTOR ERROR - Water Not Dispensed] ` + txn.note;
+        txn.status = 'FAILED_NO_WATER';
+      }
+    } else {
+      order.status = 'completed';
+      order.completed_at = nowIST();
+      console.log(`✅ Machine completed Order ${order_id} (${order.actual_dispensed_litres}L)`);
+    }
+
     saveDB(db);
-    console.log(`✅ Machine completed Order ${order_id} (${order.actual_dispensed_litres}L)`);
-    return res.json({ success: true, message: 'Order marked completed' });
+    return res.json({ success: true, message: `Order marked ${order.status}`, order });
   }
   res.status(404).json({ success: false, message: 'Order nahi mila' });
+});
+
+// ── ESP32 reports dry-run/no-water during card dispense to auto-refund card ──
+app.post('/api/card-dispense-refund', (req, res) => {
+  const { card_uid, deducted_litres, actual_litres, reason } = req.body;
+  if (!card_uid) return res.status(400).json({ success: false, message: 'Card UID nahi mila' });
+
+  const db = loadDB();
+  const cleanUid = card_uid.replace(/\s+/g, '').toUpperCase();
+  const c = db.customers.find(x => x.card_uid && x.card_uid.replace(/\s+/g, '').toUpperCase() === cleanUid);
+  if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
+
+  const ratePerLitre = (db.price.paise_per_litre || 100) / 100.0;
+  const reqLitres = parseFloat(deducted_litres) || 20.0;
+  const actLitres = parseFloat(actual_litres) || 0.0;
+  const unservedLitres = Math.max(0, reqLitres - actLitres);
+  const refundPaise = Math.round(unservedLitres * ratePerLitre * 100);
+
+  if (refundPaise > 0) {
+    db.wallets[c.id] = (db.wallets[c.id] || 0) + refundPaise;
+    const refTxnId = 'REF_' + uuidv4().substring(0, 8).toUpperCase();
+    db.transactions.unshift({
+      id: refTxnId,
+      customer_id: c.id,
+      customer_name: c.name,
+      card_uid: c.card_uid,
+      type: 'RECHARGE',
+      amount_paise: refundPaise,
+      note: `Auto-Refund: Tank Dry/No Water (${unservedLitres.toFixed(1)}L unserved)`,
+      created_at: nowIST()
+    });
+    saveDB(db);
+    console.log(`🚨 Auto-Refund: ₹${(refundPaise/100).toFixed(2)} refunded to ${c.name} (Tank Khali / Motor Error)`);
+  }
+
+  res.json({
+    success: true,
+    message: `✅ ₹${(refundPaise/100).toFixed(2)} auto-refunded to wallet`,
+    refunded_rs: (refundPaise / 100).toFixed(2),
+    new_balance_rs: ((db.wallets[c.id] || 0) / 100).toFixed(2)
+  });
 });
 
 // ── ESP32 SYNC: Machine downloads authorized cards & balances for offline security ──
