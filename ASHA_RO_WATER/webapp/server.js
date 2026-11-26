@@ -271,6 +271,16 @@ function nowIST() {
 //  API ROUTES
 // ══════════════════════════════════════════════════════════════
 
+// ── 24/7 Keep-Alive Ping Endpoint (Never Sleep) ──
+app.get('/api/ping', (req, res) => {
+  res.json({
+    status: 'alive',
+    service: 'ASHA RO WATER',
+    time: nowIST(),
+    message: 'Server is 100% active and awake!'
+  });
+});
+
 // ── Health & Database Cloud Status Endpoint ──
 app.get('/api/cloud-status', async (req, res) => {
   let pgStatus = 'disconnected';
