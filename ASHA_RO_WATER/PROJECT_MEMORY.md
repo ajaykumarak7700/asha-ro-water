@@ -103,12 +103,22 @@
      - `[ 🚰 Abhi Paani Nikalo ]`: Resets order to pending so ESP32 immediately dispenses water when the customer is ready with their jar.
 5. **🛡️ Flow Sensor Dry-Run Protection (Tank Empty / Motor Fault Auto-Detection):**
    - During water dispensing, ESP32 monitors flow pulses in real time.
-   - If no water flows in the first 6 seconds (<5 pulses) or flow stalls midway for >5 seconds:
+   - If no water flows in the first few seconds (<5 pulses) or flow stalls midway:
      - Relay/Motor is turned OFF immediately (Dry-Run Protection, saves pump).
      - ESP32 OLED displays: `! TANK KHALI HAI ! Paani Nahi Nikla / Paisa Wapas Hoga`.
      - For RFID cards: In online mode, calls `/api/card-dispense-refund` to auto-credit wallet. In offline mode, flash memory balance is restored immediately.
      - For QR Payments: Sends `status: "failed_no_water"` to `/api/machine/complete`.
-     - Admin Panel shows `🚨 टंकी खाली / मोटर एरर (0L Nikla)` with 1-click cash refund button.
+     - Admin Panel shows `🚨 टंकी खाली / मोटर एरर (0L Nikla)` with auto-refund / 1-click cash refund button.
+6. **💳 Instant Razorpay Auto-Refund & Dynamic Safety Timers:**
+   - When an unserved QR payment order expires or fails due to an empty tank, the backend automatically triggers `triggerRazorpayRefund(order.payment_id, ...)` to return the money directly to the customer's UPI account.
+   - Admin can adjust safety timers in Admin Settings:
+     - Machine Offline Expire Timer: 30s, 60s, 90s, 120s (default 90s).
+     - Flow Sensor Dry-Run / Stall Timer: 2s to 60s (default 6s, auto-synced with ESP32).
+     - Auto-Refund UPI Toggle (ON/OFF).
+7. **☁️ Supabase PostgreSQL Cloud Persistence & 1-Click Backup / Restore:**
+   - Automatic IPv4 Connection Pooler probing (`aws-0-ap-south-1.pooler.supabase.com:6543/5432`) prevents Render free-tier IPv6 `ENETUNREACH` disconnections.
+   - Customer data is automatically merged and synchronized between PostgreSQL and local memory.
+   - Admin Settings provides 1-click Full Database JSON Backup (`/api/admin/export-db`) and 1-click JSON Restore (`/api/admin/import-db`), guaranteeing customer cards are never lost during server redeployments.
 
 ---
 

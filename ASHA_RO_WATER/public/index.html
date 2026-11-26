@@ -410,9 +410,9 @@ input:focus,select:focus{border-color:var(--blue)}
         <div class="card-body">
           <div id="priceAlert"></div>
 
-          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:12px;margin-bottom:16px">
-            <div style="font-size:12px;color:#166534;font-weight:700">💧 Current Rate & Default Quantity</div>
-            <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:6px">
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;margin-bottom:16px">
+            <div style="font-size:12px;color:#166534;font-weight:700">💧 Current Live Settings & Protection Status</div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:8px">
               <div>
                 <span style="font-size:11px;color:#4b5563">Water Rate:</span>
                 <div style="font-size:22px;font-weight:800;color:var(--blue)" id="currentPrice">₹1.00 / L</div>
@@ -424,6 +424,18 @@ input:focus,select:focus{border-color:var(--blue)}
               <div>
                 <span style="font-size:11px;color:#4b5563">मशीन ऑफ़लाइन टाइमर:</span>
                 <div style="font-size:22px;font-weight:800;color:#dc2626" id="currentExpirySeconds">90 Sec</div>
+              </div>
+              <div>
+                <span style="font-size:11px;color:#4b5563">टंकी खाली टाइमर:</span>
+                <div style="font-size:22px;font-weight:800;color:#d97706" id="currentStallSeconds">6 Sec</div>
+              </div>
+              <div>
+                <span style="font-size:11px;color:#4b5563">फ़्लो सेंसर पल्स:</span>
+                <div style="font-size:22px;font-weight:800;color:#0284c7" id="currentPulsesPerLitre">450 P/L</div>
+              </div>
+              <div>
+                <span style="font-size:11px;color:#4b5563">ऑटो-रिफंड UPI:</span>
+                <div style="font-size:18px;font-weight:800;color:#059669;margin-top:3px" id="currentAutoRefund">चालू (Active)</div>
               </div>
             </div>
           </div>
@@ -437,11 +449,37 @@ input:focus,select:focus{border-color:var(--blue)}
               <label>Card Scan Par Kitna Paani (Litres)</label>
               <input type="number" id="defaultCardLitresInput" step="1" min="1" placeholder="e.g. 20">
             </div>
+          </div>
+
+          <div class="form-row" style="margin-top:10px">
             <div class="form-group">
-              <label>⏱️ ऑफ़लाइन टाइमर (सेकंड में)</label>
+              <label>⏱️ मशीन ऑफ़लाइन एक्सपायर टाइमर (सेकंड में)</label>
               <input type="number" id="orderExpirySecondsInput" step="10" min="15" max="600" placeholder="e.g. 90 (30, 60, 90, 120)">
-              <small style="font-size:11px;color:#64748b">मशीन ऑफ़लाइन होने पर इतने सेकंड बाद एक्सपायर हो</small>
+              <small style="font-size:11px;color:#64748b">मशीन ऑफ़लाइन होने पर इतने सेकंड बाद आर्डर एक्सपायर होकर UPI ऑटो-रिफंड हो</small>
             </div>
+            <div class="form-group">
+              <label>🛑 टंकी खाली / नो-फ़्लो टाइमर (सेकंड में)</label>
+              <input type="number" id="flowStallSecondsInput" step="1" min="2" max="60" placeholder="e.g. 6 (4, 6, 8, 10)">
+              <small style="font-size:11px;color:#64748b">पंप ऑन होने पर इतने सेकंड पानी न निकले तो मोटर बंद हो और रिफंड हो</small>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-top:10px">
+            <div class="form-group">
+              <label>🌊 फ़्लो सेंसर कैलिब्रेशन पल्स (Pulses Per Litre - K-Factor)</label>
+              <input type="number" id="pulsesPerLitreInput" step="1" min="100" max="2000" placeholder="e.g. 450 (480, 500, 515)">
+              <small style="font-size:11px;color:#0284c7">💡 <b>Jar भरते समय पानी 2-3L ज़्यादा गिरे तो यह नंबर बढ़ाएं</b> (जैसे 490, 510 या 520)। अगर पानी कम गिरे तो घटाएं (जैसे 420)।</small>
+            </div>
+          </div>
+
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-top:12px">
+            <label style="display:flex;align-items:center;gap:8px;font-weight:700;color:#0f172a;cursor:pointer">
+              <input type="checkbox" id="autoRefundUpiToggle" checked style="width:18px;height:18px">
+              <span>💳 UPI ऑटो-रिफंड (Razorpay) चालू रखें</span>
+            </label>
+            <small style="display:block;margin-top:4px;color:#64748b;font-size:11px">
+              मशीन ऑफ़लाइन होने या टंकी खाली रहने पर ग्राहक का UPI पैसा तुरंत वापस उसके बैंक खाते में चला जाएगा।
+            </small>
           </div>
 
           <div style="border-top:1px solid #e5e7eb;padding-top:14px;margin-top:14px">
@@ -464,6 +502,22 @@ input:focus,select:focus{border-color:var(--blue)}
           </div>
 
           <button class="btn btn-primary" onclick="updatePrice()">💾 Sabhi Settings Save Karein</button>
+
+          <!-- CLOUD DATABASE STATUS & BACKUP / RESTORE BOX -->
+          <div style="border-top:2px dashed #cbd5e1;padding-top:16px;margin-top:20px">
+            <h4 style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:8px">☁️ Cloud Database & Permanent Card Backup</h4>
+            <div id="cloudStatusCard" style="background:#f1f5f9;padding:12px;border-radius:8px;font-size:12px;color:#334155;margin-bottom:12px">
+              <div id="cloudDbBadge">जाँच हो रही है...</div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <a href="/api/admin/export-db" class="btn btn-outline" style="text-decoration:none;font-size:12px;padding:8px 14px">
+                📥 Full Database Backup (.JSON Download)
+              </a>
+              <button class="btn btn-outline" onclick="openImportDbModal()" style="font-size:12px;padding:8px 14px">
+                📤 Restore Database from JSON
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -608,6 +662,27 @@ input:focus,select:focus{border-color:var(--blue)}
     <div class="modal-footer">
       <button class="btn btn-light" onclick="closeModal('editModal')">Cancel</button>
       <button class="btn btn-primary" onclick="submitEdit()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESTORE DATABASE MODAL -->
+<div class="overlay" id="importDbModal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-hdr">
+      <h3>📥 डेटाबेस बैकअप रिस्टोर करें</h3>
+      <button class="btn btn-light btn-sm" onclick="closeModal('importDbModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="importDbAlert"></div>
+      <p style="font-size:13px;color:#475569;margin-bottom:14px;line-height:1.5">
+        अपनी बैकअप <code>.json</code> फ़ाइल चुनें। यह आपके सभी ग्राहकों, RFID कार्ड और वॉलेट बैलेंस को तुरंत रिस्टोर कर देगी।
+      </p>
+      <input type="file" id="importDbFileInput" accept=".json" style="margin-bottom:15px;display:block;width:100%">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-light" onclick="closeModal('importDbModal')">रद्द करें</button>
+      <button class="btn btn-primary" onclick="submitImportDb()">📤 रिस्टोर कन्फर्म करें</button>
     </div>
   </div>
 </div>
@@ -1585,17 +1660,53 @@ async function loadPrice(){
       document.getElementById('currentExpirySeconds').textContent = `${res.order_expiry_seconds} Sec`;
       document.getElementById('orderExpirySecondsInput').value = res.order_expiry_seconds;
     }
+    if(res.flow_stall_seconds) {
+      document.getElementById('currentStallSeconds').textContent = `${res.flow_stall_seconds} Sec`;
+      document.getElementById('flowStallSecondsInput').value = res.flow_stall_seconds;
+    }
+    if(res.pulses_per_litre) {
+      document.getElementById('currentPulsesPerLitre').textContent = `${res.pulses_per_litre} P/L`;
+      document.getElementById('pulsesPerLitreInput').value = res.pulses_per_litre;
+    }
+    if(res.auto_refund_upi !== undefined) {
+      const isUpiOn = res.auto_refund_upi !== false;
+      document.getElementById('autoRefundUpiToggle').checked = isUpiOn;
+      document.getElementById('currentAutoRefund').textContent = isUpiOn ? 'चालू (Active)' : 'बंद (Off)';
+      document.getElementById('currentAutoRefund').style.color = isUpiOn ? '#059669' : '#dc2626';
+    }
     document.getElementById('newPriceInput').value = res.price_per_litre_rs;
     document.getElementById('defaultCardLitresInput').value = res.default_card_litres;
     if(res.razorpay_key_id) document.getElementById('rzpKeyInput').value = res.razorpay_key_id;
     if(res.razorpay_key_secret) document.getElementById('rzpSecretInput').value = res.razorpay_key_secret;
   }
+  checkCloudStatus();
 }
+
+async function checkCloudStatus(){
+  const statusEl = document.getElementById('cloudDbBadge');
+  if (!statusEl) return;
+  const res = await fetch('/api/cloud-status').then(r=>r.json()).catch(()=>null);
+  if (res && res.success) {
+    if (res.pg_status === 'connected') {
+      statusEl.innerHTML = `<span style="color:#16a34a;font-weight:700">🟢 Supabase PostgreSQL Cloud Connected</span><br>` +
+        `<span style="color:#64748b">Host: ${res.active_host || 'Cloud'} | Cloud Database me <b>${res.supabase_customers_count}</b> Cards surakshit saved hain. Code update par bhi cards gayab nahi honge.</span>`;
+    } else {
+      statusEl.innerHTML = `<span style="color:#dc2626;font-weight:700">⚠️ Cloud Database Disconnected (${res.pg_error || res.pg_status})</span><br>` +
+        `<span style="color:#64748b">Local disk storage active (${res.memory_customers_count} cards). Neeche diye button se Backup download karke surakshit rakhein.</span>`;
+    }
+  } else {
+    statusEl.innerHTML = `<span style="color:#64748b">Cloud status check nahi ho saka.</span>`;
+  }
+}
+
 async function updatePrice(){
   const body = {
     price_per_litre_rs: document.getElementById('newPriceInput').value,
     default_card_litres: document.getElementById('defaultCardLitresInput').value,
     order_expiry_seconds: document.getElementById('orderExpirySecondsInput').value,
+    flow_stall_seconds: document.getElementById('flowStallSecondsInput').value,
+    pulses_per_litre: document.getElementById('pulsesPerLitreInput').value,
+    auto_refund_upi: document.getElementById('autoRefundUpiToggle').checked,
     razorpay_key_id: document.getElementById('rzpKeyInput').value,
     razorpay_key_secret: document.getElementById('rzpSecretInput').value,
     admin_pin: document.getElementById('pricePinInput').value || getAdminToken()
@@ -1615,6 +1726,49 @@ async function updatePrice(){
   } else {
     showAlert('priceAlert', res ? res.message : 'Error updating settings', 'error');
   }
+}
+
+function openImportDbModal(){
+  document.getElementById('importDbAlert').innerHTML = '';
+  document.getElementById('importDbFileInput').value = '';
+  document.getElementById('importDbModal').classList.add('show');
+}
+
+async function submitImportDb(){
+  const fileInput = document.getElementById('importDbFileInput');
+  if (!fileInput.files || fileInput.files.length === 0) {
+    showAlert('importDbAlert', 'कृपया एक JSON बैकअप फ़ाइल चुनें', 'error');
+    return;
+  }
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const res = await fetch('/api/admin/import-db', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + getAdminToken()
+        },
+        body: JSON.stringify({ data })
+      }).then(r => r.json()).catch(() => null);
+
+      if (res && res.success) {
+        showAlert('importDbAlert', res.message, 'success');
+        setTimeout(() => {
+          closeModal('importDbModal');
+          loadData();
+          loadPrice();
+        }, 1500);
+      } else {
+        showAlert('importDbAlert', res ? res.message : 'रिस्टोर असफल रहा', 'error');
+      }
+    } catch(err) {
+      showAlert('importDbAlert', 'फ़ाइल JSON प्रारूप में नहीं है!', 'error');
+    }
+  };
+  reader.readAsText(file);
 }
 
 // ── HELPERS ──

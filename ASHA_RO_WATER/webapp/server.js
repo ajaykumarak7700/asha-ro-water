@@ -83,19 +83,85 @@ try {
   console.warn('⚠️ pg module not found, fallback to disk storage');
 }
 let pgPool = null;
+let activePgHost = 'none';
+let activePgError = null;
 
-if (Pool && process.env.DATABASE_URL) {
+async function tryConnectPg(connStr, description) {
+  if (!Pool || !connStr) return null;
   try {
-    pgPool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
-      connectionTimeoutMillis: 5000,
+    const isLocal = connStr.includes('localhost') || connStr.includes('127.0.0.1');
+    const p = new Pool({
+      connectionString: connStr,
+      ssl: isLocal ? false : { rejectUnauthorized: false },
+      connectionTimeoutMillis: 4000,
       idleTimeoutMillis: 10000
     });
-    console.log('🐘 PostgreSQL Cloud Database detected from DATABASE_URL!');
-  } catch (pgErr) {
-    console.error('❌ Failed to initialize pgPool:', pgErr.message);
+    // Test with a quick 3s race query
+    const q = p.query('SELECT 1');
+    const to = new Promise((_, rej) => setTimeout(() => rej(new Error('Connect timeout (3.5s)')), 3500));
+    await Promise.race([q, to]);
+    console.log(`🐘 PostgreSQL connected successfully (${description})!`);
+    return p;
+  } catch (err) {
+    console.warn(`⚠️ PostgreSQL connection attempt failed (${description}):`, err.message);
+    activePgError = `${description}: ${err.message}`;
+    return null;
   }
+}
+
+async function establishDatabaseConnection() {
+  if (!Pool) return null;
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl) return null;
+
+  // 1. Direct connection test
+  let pool = await tryConnectPg(rawUrl, 'direct DATABASE_URL');
+  if (pool) {
+    try {
+      const u = new URL(rawUrl);
+      activePgHost = u.hostname;
+    } catch(e) { activePgHost = 'direct'; }
+    activePgError = null;
+    return pool;
+  }
+
+  // 2. Probing IPv4 Supabase Poolers (if direct is Supabase IPv6 host)
+  try {
+    const u = new URL(rawUrl);
+    if (u.hostname.startsWith('db.') && u.hostname.endsWith('.supabase.co')) {
+      const projectRef = u.hostname.split('.')[1];
+      const baseUser = u.username.includes('.') ? u.username : `${u.username}.${projectRef}`;
+      const dbName = u.pathname || '/postgres';
+      const password = u.password;
+      console.log(`ℹ️ Supabase IPv6 host detected (${u.hostname}). Probing IPv4 connection poolers for project '${projectRef}'...`);
+
+      // Try AWS pooler regions (Mumbai ap-south-1 first, then Singapore, Sydney, US)
+      const regions = ['ap-south-1', 'ap-southeast-1', 'ap-southeast-2', 'us-east-1'];
+      for (const reg of regions) {
+        // Try Transaction pooler (port 6543)
+        const poolerUrl6543 = `postgresql://${encodeURIComponent(baseUser)}:${encodeURIComponent(password)}@aws-0-${reg}.pooler.supabase.com:6543${dbName}`;
+        pool = await tryConnectPg(poolerUrl6543, `Supabase IPv4 Pooler ${reg}:6543`);
+        if (pool) {
+          activePgHost = `aws-0-${reg}.pooler.supabase.com:6543`;
+          activePgError = null;
+          return pool;
+        }
+
+        // Try Session pooler (port 5432)
+        const poolerUrl5432 = `postgresql://${encodeURIComponent(baseUser)}:${encodeURIComponent(password)}@aws-0-${reg}.pooler.supabase.com:5432${dbName}`;
+        pool = await tryConnectPg(poolerUrl5432, `Supabase IPv4 Pooler ${reg}:5432`);
+        if (pool) {
+          activePgHost = `aws-0-${reg}.pooler.supabase.com:5432`;
+          activePgError = null;
+          return pool;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing DATABASE_URL for pooler candidate:', e.message);
+  }
+
+  return null;
 }
 
 // ─── ADMIN AUTHENTICATION CONFIGURATION ────────────────────
@@ -179,6 +245,9 @@ function saveDB(db) {
 }
 
 async function initDatabase() {
+  pgPool = await establishDatabaseConnection();
+  const diskDB = loadDiskDB();
+
   if (pgPool) {
     try {
       await pgPool.query(`
@@ -189,29 +258,52 @@ async function initDatabase() {
         )
       `);
       const res = await pgPool.query("SELECT data FROM app_state WHERE key = 'asha_ro_water_db'");
-      if (res.rows.length > 0 && res.rows[0].data && res.rows[0].data.customers && res.rows[0].data.customers.length > 0) {
-        memoryDB = res.rows[0].data;
-        if (!memoryDB.settings) memoryDB.settings = { default_card_litres: 20 };
-        if (!memoryDB.pending_orders) memoryDB.pending_orders = [];
-        if (!memoryDB.cashback_wallets) memoryDB.cashback_wallets = {};
-        console.log(`✅ Loaded persistent database from PostgreSQL Cloud! (${memoryDB.customers.length} customers)`);
+      if (res.rows.length > 0 && res.rows[0].data && res.rows[0].data.customers) {
+        const cloudDB = res.rows[0].data;
+        if (!cloudDB.settings) cloudDB.settings = { default_card_litres: 20 };
+        if (!cloudDB.pending_orders) cloudDB.pending_orders = [];
+        if (!cloudDB.cashback_wallets) cloudDB.cashback_wallets = {};
+
+        // Merge disk customers into cloud if disk has any newly registered customer
+        const cloudCustIds = new Set(cloudDB.customers.map(c => c.id));
+        const cloudUids = new Set(cloudDB.customers.map(c => (c.card_uid || '').replace(/\s+/g, '').toUpperCase()));
+        let merged = false;
+
+        for (const dc of (diskDB.customers || [])) {
+          const dUid = (dc.card_uid || '').replace(/\s+/g, '').toUpperCase();
+          if (!cloudCustIds.has(dc.id) && dUid && !cloudUids.has(dUid)) {
+            cloudDB.customers.push(dc);
+            if (diskDB.wallets && diskDB.wallets[dc.id]) {
+              cloudDB.wallets[dc.id] = diskDB.wallets[dc.id];
+            }
+            merged = true;
+            console.log(`🔄 Merged local card into cloud database: ${dc.name} (${dc.card_uid})`);
+          }
+        }
+
+        memoryDB = cloudDB;
+        if (merged) {
+          saveDB(memoryDB);
+        }
+        console.log(`✅ Loaded persistent database from PostgreSQL Cloud (${activePgHost})! (${memoryDB.customers.length} customers)`);
         try { fs.writeFileSync(DB_FILE, JSON.stringify(memoryDB, null, 2)); } catch(e){}
       } else {
-        const initial = loadDiskDB();
         await pgPool.query(
           `INSERT INTO app_state (key, data, updated_at) VALUES ($1, $2::jsonb, NOW())
            ON CONFLICT (key) DO UPDATE SET data = $2::jsonb, updated_at = NOW()`,
-          ['asha_ro_water_db', JSON.stringify(initial)]
+          ['asha_ro_water_db', JSON.stringify(diskDB)]
         );
-        memoryDB = initial;
-        console.log(`🚀 Initialized PostgreSQL Cloud Database with ${initial.customers ? initial.customers.length : 0} initial customers!`);
+        memoryDB = diskDB;
+        console.log(`🚀 Initialized PostgreSQL Cloud Database with ${diskDB.customers ? diskDB.customers.length : 0} initial customers!`);
       }
     } catch(err) {
-      console.error('❌ PostgreSQL connection error:', err.message);
-      memoryDB = loadDiskDB();
+      console.error('❌ PostgreSQL query error in initDatabase:', err.message);
+      activePgError = err.message;
+      memoryDB = diskDB;
     }
   } else {
-    memoryDB = loadDiskDB();
+    console.log('📁 Using local disk storage (data/db.json).');
+    memoryDB = diskDB;
   }
   initRazorpayFromDB();
 }
@@ -284,7 +376,7 @@ app.get('/api/ping', (req, res) => {
 // ── Health & Database Cloud Status Endpoint ──
 app.get('/api/cloud-status', async (req, res) => {
   let pgStatus = 'disconnected';
-  let pgError = null;
+  let pgError = activePgError;
   let pgCount = 0;
   let pgCustomers = [];
   if (pgPool) {
@@ -305,17 +397,51 @@ app.get('/api/cloud-status', async (req, res) => {
       pgError = e.message;
     }
   } else {
-    pgStatus = 'no_pool (DATABASE_URL missing or Pool failed)';
+    pgStatus = activePgError ? `failed (${activePgError})` : 'no_pool (DATABASE_URL missing or Pool failed)';
   }
   res.json({
     success: true,
     has_db_url: !!process.env.DATABASE_URL,
     db_url_starts_with: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 18) + '...' : 'none',
+    active_host: activePgHost,
     pg_status: pgStatus,
     pg_error: pgError,
     supabase_customers_count: pgCount,
     supabase_customers: pgCustomers,
     memory_customers_count: memoryDB ? (memoryDB.customers ? memoryDB.customers.length : 0) : 0
+  });
+});
+
+// ── Admin Export Complete Database (JSON Backup) ──
+app.get('/api/admin/export-db', (req, res) => {
+  const db = loadDB();
+  const dateStr = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-disposition', `attachment; filename=asha_ro_water_backup_${dateStr}.json`);
+  res.setHeader('Content-type', 'application/json');
+  res.send(JSON.stringify(db, null, 2));
+});
+
+// ── Admin Import / Restore Database (JSON Backup) ──
+app.post('/api/admin/import-db', (req, res) => {
+  if (!verifyAdmin(req)) {
+    return res.status(403).json({ success: false, message: '❌ Unauthorized! एडमिन पासवर्ड से लॉगिन करें।' });
+  }
+  const importData = req.body?.data || req.body;
+  if (!importData || !Array.isArray(importData.customers)) {
+    return res.status(400).json({ success: false, message: '❌ अमान्य बैकअप फ़ाइल! Customers सूची नहीं मिली।' });
+  }
+  if (!importData.wallets) importData.wallets = {};
+  if (!importData.transactions) importData.transactions = [];
+  if (!importData.price) importData.price = { paise_per_litre: 100 };
+  if (!importData.settings) importData.settings = { default_card_litres: 20 };
+  if (!importData.pending_orders) importData.pending_orders = [];
+  if (!importData.cashback_wallets) importData.cashback_wallets = {};
+
+  saveDB(importData);
+  res.json({
+    success: true,
+    message: `✅ डेटाबेस सफलतापूर्वक रिस्टोर हो गया! (${importData.customers.length} ग्राहक)`,
+    customers_count: importData.customers.length
   });
 });
 
@@ -861,7 +987,8 @@ app.post('/api/razorpay/verify-payment', (req, res) => {
       customer_id: customer_id || null,
       payment_id: razorpay_payment_id,
       status: 'pending', // ESP32 will pick this up!
-      created_at: nowIST()
+      created_at: nowIST(),
+      created_at_ms: Date.now()
     };
 
     db.pending_orders.push(newOrder);
@@ -960,7 +1087,8 @@ app.post('/api/razorpay/webhook', (req, res) => {
             customer_phone: buyerPhone,
             payment_id: payment_id,
             status: 'pending',
-            created_at: nowIST()
+            created_at: nowIST(),
+            created_at_ms: Date.now()
           });
 
           const phoneNote = buyerPhone ? ` (Mob: ${buyerPhone})` : '';
@@ -1032,7 +1160,8 @@ app.post('/api/cashfree/webhook', (req, res) => {
           customer_phone: buyerPhone,
           payment_id: payment_id,
           status: 'pending',
-          created_at: nowIST()
+          created_at: nowIST(),
+          created_at_ms: Date.now()
         });
 
         const phoneNote = buyerPhone ? ` (Mob: ${buyerPhone})` : '';
@@ -1087,8 +1216,9 @@ app.post('/api/qr-buy-water', (req, res) => {
     litres: litres,
     customer_name: buyerName,
     customer_id: customer_id || null,
-    status: 'pending', // pending -> in_progress -> completed
-    created_at: nowIST()
+    status: 'pending', // pending -> in_progress -> completed -> expired
+    created_at: nowIST(),
+    created_at_ms: Date.now()
   };
 
   db.pending_orders.push(newOrder);
@@ -1119,10 +1249,81 @@ app.post('/api/qr-buy-water', (req, res) => {
   });
 });
 
+// ── RAZORPAY AUTO-REFUND HELPER ──
+async function triggerRazorpayRefund(paymentId, amountPaise, reason) {
+  if (!razorpay || !paymentId) return null;
+  if (!paymentId.startsWith('pay_')) {
+    console.log(`ℹ️ Payment ID ${paymentId} is not a live Razorpay pay_id, skipping gateway API refund.`);
+    return null;
+  }
+  try {
+    const refund = await razorpay.payments.refund(paymentId, {
+      amount: amountPaise,
+      notes: { reason: reason || 'Water ATM Auto-Refund' }
+    });
+    console.log(`💳 Razorpay Auto-Refund SUCCESS! Refund ID: ${refund.id} for ₹${amountPaise/100}`);
+    return refund;
+  } catch (err) {
+    console.error(`❌ Razorpay Auto-Refund Error for ${paymentId}:`, err.message);
+    return null;
+  }
+}
+
+// ── HELPER: Check and mark pending orders as expired if machine was offline > order_expiry_seconds ──
+function checkExpiredOrders(db) {
+  if (!db || !db.pending_orders) return false;
+  const nowMs = Date.now();
+  const expSec = parseInt((db.settings && db.settings.order_expiry_seconds) ? db.settings.order_expiry_seconds : 90, 10);
+  const EXPIRE_TIMEOUT_MS = Math.max(15, isNaN(expSec) ? 90 : expSec) * 1000;
+  const autoRefundEnabled = db.settings?.auto_refund_upi !== false;
+  let changed = false;
+
+  for (const o of db.pending_orders) {
+    if (o.status === 'pending') {
+      const orderMs = o.created_at_ms || (o.created_at ? new Date(o.created_at).getTime() : 0);
+      if (orderMs && (nowMs - orderMs > EXPIRE_TIMEOUT_MS)) {
+        o.status = 'expired';
+        o.expired_at = nowIST();
+        o.expire_reason = `ESP32 Machine Offline / Timeout (> ${Math.round(EXPIRE_TIMEOUT_MS/1000)}s)`;
+        changed = true;
+        console.log(`⚠️ Order ${o.id} EXPIRED! Machine was offline >${Math.round(EXPIRE_TIMEOUT_MS/1000)}s.`);
+
+        // 💳 AUTO-REFUND VIA RAZORPAY IF ONLINE QR PAYMENT
+        if (autoRefundEnabled && o.payment_id && o.payment_id.startsWith('pay_')) {
+          const amtPaise = Math.round((o.amount_rs || 20) * 100);
+          triggerRazorpayRefund(o.payment_id, amtPaise, 'Water Dispenser Offline Timeout')
+            .then(ref => {
+              if (ref) {
+                o.status = 'auto_refunded';
+                o.refund_id = ref.id;
+                o.refunded_at = nowIST();
+                o.refund_method = 'RAZORPAY_UPI';
+                saveDB(db);
+                console.log(`✅ Order ${o.id} AUTO-REFUNDED via Razorpay (Refund ID: ${ref.id})`);
+              }
+            }).catch(e => console.error('Refund background error:', e.message));
+        }
+
+        // Update corresponding transaction so it clearly marks expired
+        if (db.transactions) {
+          const txn = db.transactions.find(t => t.id === o.id || (o.payment_id && t.payment_ref === o.payment_id));
+          if (txn && !txn.note.includes('[EXPIRED]') && !txn.note.includes('[AUTO-REFUNDED]')) {
+            txn.note = `[EXPIRED - Water Not Dispensed] ` + txn.note;
+            txn.status = 'EXPIRED';
+          }
+        }
+      }
+    }
+  }
+  return changed;
+}
+
 // ── ESP32 polls this endpoint to check if there is an active QR order ──
 app.get('/api/machine/pending', (req, res) => {
   const db = loadDB();
-  // Find first pending order
+  const changed = checkExpiredOrders(db);
+
+  // Find first active unexpired pending order
   const order = db.pending_orders.find(o => o.status === 'pending');
   if (order) {
     order.status = 'in_progress';
@@ -1137,23 +1338,215 @@ app.get('/api/machine/pending', (req, res) => {
       amount_rs: order.amount_rs
     });
   }
+
+  if (changed) {
+    saveDB(db);
+  }
   res.json({ has_order: false });
 });
 
-// ── ESP32 confirms order completed ──
-app.post('/api/machine/complete', (req, res) => {
-  const { order_id, actual_litres } = req.body;
+// ── GET list of expired / offline / dry-run failed orders for Admin Dashboard ──
+app.get('/api/admin/expired-orders', (req, res) => {
   const db = loadDB();
-  const order = db.pending_orders.find(o => o.id === order_id);
-  if (order) {
-    order.status = 'completed';
-    order.completed_at = nowIST();
-    order.actual_dispensed_litres = actual_litres || order.litres;
+  const changed = checkExpiredOrders(db);
+  if (changed) saveDB(db);
+
+  const expiredList = (db.pending_orders || [])
+    .filter(o => o.status === 'expired' || o.status === 'failed_no_water')
+    .sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
+
+  res.json({
+    success: true,
+    count: expiredList.length,
+    orders: expiredList
+  });
+});
+
+// ── Admin resolves an expired order (Cash refund or immediate manual dispense retry) ──
+app.post('/api/admin/resolve-order', (req, res) => {
+  const { order_id, action, note } = req.body;
+  if (!order_id || !action) {
+    return res.status(400).json({ success: false, message: 'order_id aur action jaroori hain' });
+  }
+
+  const db = loadDB();
+  checkExpiredOrders(db);
+
+  const order = (db.pending_orders || []).find(o => o.id === order_id);
+  if (!order) {
+    return res.status(404).json({ success: false, message: 'Order nahi mila' });
+  }
+
+  if (action === 'cash_refund') {
+    order.status = 'refunded_cash';
+    order.resolved_at = nowIST();
+    order.resolution = 'CASH_REFUND';
+    order.refund_note = note || `₹${order.amount_rs} Cash refunded to customer by Admin`;
+
+    // Record refund in transactions
+    const refTxnId = 'REF_' + uuidv4().substring(0, 8).toUpperCase();
+    db.transactions.unshift({
+      id: refTxnId,
+      customer_id: order.customer_id || 'QR_BUYER',
+      customer_name: order.customer_name || 'Customer',
+      card_uid: 'CASH_REFUND',
+      type: 'REFUND',
+      amount_paise: -Math.round((order.amount_rs || 20) * 100),
+      note: `💵 Cash Refund: ₹${order.amount_rs} wapas kiya (Order ${order.id})`,
+      payment_ref: order.id,
+      created_at: nowIST()
+    });
+
     saveDB(db);
-    console.log(`✅ Machine completed Order ${order_id} (${order.actual_dispensed_litres}L)`);
-    return res.json({ success: true, message: 'Order marked completed' });
+    console.log(`💵 Order ${order.id} marked as CASH REFUNDED (₹${order.amount_rs})`);
+    return res.json({
+      success: true,
+      message: `✅ ₹${order.amount_rs} Cash Refund record ho gaya!`,
+      order
+    });
+  } else if (action === 'retry_dispense') {
+    // Reset order to pending with fresh timestamp so machine picks it up immediately
+    order.status = 'pending';
+    order.created_at = nowIST();
+    order.created_at_ms = Date.now();
+    order.retried_by_admin = true;
+    order.retried_at = nowIST();
+
+    saveDB(db);
+    console.log(`🚰 Order ${order.id} RETRIED by Admin for dispense (${order.litres}L)`);
+    return res.json({
+      success: true,
+      message: `🚰 Machine ko ${order.litres}L paani nikalne ka signal bhej diya gaya hai!`,
+      order
+    });
+  } else if (action === 'dismiss') {
+    order.status = 'dismissed';
+    order.resolved_at = nowIST();
+    saveDB(db);
+    return res.json({ success: true, message: 'Order dismiss ho gaya.', order });
+  }
+
+  res.status(400).json({ success: false, message: 'Unknown action' });
+});
+
+// ── Public Order Status Check (For Customer Mobile UI) ──
+app.get('/api/order-status/:id', (req, res) => {
+  const db = loadDB();
+  checkExpiredOrders(db);
+  const order = (db.pending_orders || []).find(o => o.id === req.params.id);
+  if (!order) {
+    return res.status(404).json({ success: false, message: 'Order nahi mila' });
+  }
+  res.json({
+    success: true,
+    order: {
+      id: order.id,
+      status: order.status,
+      litres: order.litres,
+      amount_rs: order.amount_rs,
+      customer_name: order.customer_name,
+      created_at: order.created_at,
+      expired_at: order.expired_at,
+      status_text: order.status === 'expired'
+        ? '⚠️ मशीन ऑफ़लाइन थी, इसलिए पानी नहीं निकला। कृपया ऑपरेटर (अजय जी) को Payment ID दिखाकर ₹20 कैश वापस लें या पानी निकलवाएं।'
+        : (order.status === 'completed'
+            ? '✅ पानी निकल चुका है!'
+            : (order.status === 'refunded_cash'
+                ? '💵 इस आर्डर का ₹20 कैश रिफंड दिया जा चुका है।'
+                : '⏳ मशीन प्रोसेस कर रही है...'))
+    }
+  });
+});
+
+// ── ESP32 confirms order completed or reports failure (No water / Dry-run) ──
+app.post('/api/machine/complete', (req, res) => {
+  const { order_id, actual_litres, status, reason } = req.body;
+  const db = loadDB();
+  const order = (db.pending_orders || []).find(o => o.id === order_id);
+  if (order) {
+    const actL = (actual_litres !== undefined) ? parseFloat(actual_litres) : order.litres;
+    order.actual_dispensed_litres = isNaN(actL) ? 0 : actL;
+
+    if (status === 'failed_no_water' || (actL < (order.litres * 0.5) && order.litres >= 1)) {
+      order.status = 'failed_no_water';
+      order.failed_at = nowIST();
+      order.failure_reason = reason || 'Tank khali / Motor error (Dry-run stopped)';
+      console.log(`🚨 Machine reported NO WATER for Order ${order_id}! Motor stopped to protect pump. (Actual: ${order.actual_dispensed_litres}L)`);
+
+      // 💳 AUTO-REFUND VIA RAZORPAY IF ONLINE QR
+      const autoRefundEnabled = db.settings?.auto_refund_upi !== false;
+      if (autoRefundEnabled && order.payment_id && order.payment_id.startsWith('pay_')) {
+        const amtPaise = Math.round((order.amount_rs || 20) * 100);
+        triggerRazorpayRefund(order.payment_id, amtPaise, 'Tank Empty / Dry-run No Flow')
+          .then(ref => {
+            if (ref) {
+              order.status = 'auto_refunded';
+              order.refund_id = ref.id;
+              order.refunded_at = nowIST();
+              order.refund_method = 'RAZORPAY_UPI';
+              saveDB(db);
+              console.log(`✅ Order ${order_id} AUTO-REFUNDED via Razorpay (Refund ID: ${ref.id})`);
+            }
+          }).catch(e => console.error('Dry-run refund error:', e.message));
+      }
+
+      // Update transaction note
+      const txn = db.transactions.find(t => t.id === order_id || (order.payment_id && t.payment_ref === order.payment_id));
+      if (txn && !txn.note.includes('[TANK KHALI/NO WATER]') && !txn.note.includes('[AUTO-REFUNDED]')) {
+        txn.note = `[TANK KHALI / MOTOR ERROR - Water Not Dispensed] ` + txn.note;
+        txn.status = 'FAILED_NO_WATER';
+      }
+    } else {
+      order.status = 'completed';
+      order.completed_at = nowIST();
+      console.log(`✅ Machine completed Order ${order_id} (${order.actual_dispensed_litres}L)`);
+    }
+
+    saveDB(db);
+    return res.json({ success: true, message: `Order marked ${order.status}`, order });
   }
   res.status(404).json({ success: false, message: 'Order nahi mila' });
+});
+
+// ── ESP32 reports dry-run/no-water during card dispense to auto-refund card ──
+app.post('/api/card-dispense-refund', (req, res) => {
+  const { card_uid, deducted_litres, actual_litres, reason } = req.body;
+  if (!card_uid) return res.status(400).json({ success: false, message: 'Card UID nahi mila' });
+
+  const db = loadDB();
+  const cleanUid = card_uid.replace(/\s+/g, '').toUpperCase();
+  const c = db.customers.find(x => x.card_uid && x.card_uid.replace(/\s+/g, '').toUpperCase() === cleanUid);
+  if (!c) return res.status(404).json({ success: false, message: 'Customer nahi mila' });
+
+  const ratePerLitre = (db.price.paise_per_litre || 100) / 100.0;
+  const reqLitres = parseFloat(deducted_litres) || 20.0;
+  const actLitres = parseFloat(actual_litres) || 0.0;
+  const unservedLitres = Math.max(0, reqLitres - actLitres);
+  const refundPaise = Math.round(unservedLitres * ratePerLitre * 100);
+
+  if (refundPaise > 0) {
+    db.wallets[c.id] = (db.wallets[c.id] || 0) + refundPaise;
+    const refTxnId = 'REF_' + uuidv4().substring(0, 8).toUpperCase();
+    db.transactions.unshift({
+      id: refTxnId,
+      customer_id: c.id,
+      customer_name: c.name,
+      card_uid: c.card_uid,
+      type: 'RECHARGE',
+      amount_paise: refundPaise,
+      note: `Auto-Refund: Tank Dry/No Water (${unservedLitres.toFixed(1)}L unserved)`,
+      created_at: nowIST()
+    });
+    saveDB(db);
+    console.log(`🚨 Auto-Refund: ₹${(refundPaise/100).toFixed(2)} refunded to ${c.name} (Tank Khali / Motor Error)`);
+  }
+
+  res.json({
+    success: true,
+    message: `✅ ₹${(refundPaise/100).toFixed(2)} auto-refunded to wallet`,
+    refunded_rs: (refundPaise / 100).toFixed(2),
+    new_balance_rs: ((db.wallets[c.id] || 0) / 100).toFixed(2)
+  });
 });
 
 // ── ESP32 SYNC: Machine downloads authorized cards & balances for offline security ──
@@ -1177,6 +1570,9 @@ app.get('/api/machine/sync-cards', (req, res) => {
     success: true,
     price_per_litre_rs: parseFloat((db.price.paise_per_litre / 100.0).toFixed(2)),
     default_card_litres: parseFloat(db.settings.default_card_litres || 2),
+    flow_stall_seconds: parseInt(db.settings.flow_stall_seconds || 6, 10),
+    order_expiry_seconds: parseInt(db.settings.order_expiry_seconds || 90, 10),
+    pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
     cards: cards
   });
 });
@@ -1252,20 +1648,24 @@ app.post('/api/customers/:id/toggle-offline', (req, res) => {
   });
 });
 
-// ── GET/POST Machine Settings (Card Default Litres, Price, Razorpay Keys) ──
+// ── GET/POST Machine Settings (Card Default Litres, Price, Razorpay Keys, Offline Safety Timer, Flow Stall Timer, Pulses Per Litre) ──
 app.get('/api/settings', (req, res) => {
   const db = loadDB();
   res.json({
     success: true,
     price_per_litre_rs: (db.price.paise_per_litre / 100).toFixed(2),
     default_card_litres: db.settings.default_card_litres || 20,
+    order_expiry_seconds: db.settings.order_expiry_seconds || 90,
+    flow_stall_seconds: db.settings.flow_stall_seconds || 6,
+    pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
+    auto_refund_upi: db.settings.auto_refund_upi !== false,
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID,
     razorpay_key_secret: db.settings.razorpay_key_secret ? '••••••••••••••••' : '••••••••••••••••'
   });
 });
 
 app.post('/api/settings', (req, res) => {
-  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret } = req.body;
+  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, pulses_per_litre, auto_refund_upi } = req.body;
   if (!verifyAdmin(req)) {
     return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
   }
@@ -1278,24 +1678,45 @@ app.post('/api/settings', (req, res) => {
     const pL = parseFloat(price_per_litre_rs);
     if (!isNaN(pL) && pL > 0) db.price.paise_per_litre = Math.round(pL * 100);
   }
+  if (order_expiry_seconds !== undefined) {
+    const expSec = parseInt(order_expiry_seconds, 10);
+    if (!isNaN(expSec) && expSec >= 15) {
+      db.settings.order_expiry_seconds = expSec;
+    }
+  }
+  if (flow_stall_seconds !== undefined) {
+    const fSec = parseInt(flow_stall_seconds, 10);
+    if (!isNaN(fSec) && fSec >= 2 && fSec <= 60) {
+      db.settings.flow_stall_seconds = fSec;
+    }
+  }
+  if (pulses_per_litre !== undefined) {
+    const ppl = parseFloat(pulses_per_litre);
+    if (!isNaN(ppl) && ppl >= 50 && ppl <= 3000) {
+      db.settings.pulses_per_litre = ppl;
+    }
+  }
+  if (auto_refund_upi !== undefined) {
+    db.settings.auto_refund_upi = (auto_refund_upi === true || auto_refund_upi === 'true');
+  }
   if (razorpay_key_id && razorpay_key_id.trim()) {
     db.settings.razorpay_key_id = razorpay_key_id.trim();
   }
   if (razorpay_key_secret && razorpay_key_secret.trim() && !razorpay_key_secret.includes('•')) {
     db.settings.razorpay_key_secret = razorpay_key_secret.trim();
   }
-  if (uid) {
-    const cleanAdd = uid.replace(/\s+/g, '').toUpperCase();
-    unregisteredCards = unregisteredCards.filter(x => x.uid.replace(/\s+/g, '') !== cleanAdd);
-  }
   saveDB(db);
   initRazorpayFromDB();
 
-  console.log(`⚙️ Settings updated: Rate=₹${(db.price.paise_per_litre/100).toFixed(2)}/L, Card Default=${db.settings.default_card_litres}L, Key: ${db.settings.razorpay_key_id || RAZORPAY_KEY_ID}`);
+  console.log(`⚙️ Settings updated: Rate=₹${(db.price.paise_per_litre/100).toFixed(2)}/L, Card Default=${db.settings.default_card_litres}L, Offline Timer=${db.settings.order_expiry_seconds || 90}s, Flow Stall=${db.settings.flow_stall_seconds || 6}s, Pulses/L=${db.settings.pulses_per_litre || 450}, Auto-Refund=${db.settings.auto_refund_upi !== false}`);
   res.json({
     success: true,
     message: '✅ Settings update ho gayi!',
     default_card_litres: db.settings.default_card_litres,
+    order_expiry_seconds: db.settings.order_expiry_seconds || 90,
+    flow_stall_seconds: db.settings.flow_stall_seconds || 6,
+    pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
+    auto_refund_upi: db.settings.auto_refund_upi !== false,
     price_per_litre_rs: (db.price.paise_per_litre / 100).toFixed(2),
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID
   });
