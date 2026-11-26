@@ -434,6 +434,10 @@ input:focus,select:focus{border-color:var(--blue)}
                 <div style="font-size:22px;font-weight:800;color:#0284c7" id="currentPulsesPerLitre">450 P/L</div>
               </div>
               <div>
+                <span style="font-size:11px;color:#4b5563">डिस्पेंस मोड:</span>
+                <div style="font-size:18px;font-weight:800;color:#2563eb;margin-top:3px" id="currentDispenseMode">बटन मोड (Safe)</div>
+              </div>
+              <div>
                 <span style="font-size:11px;color:#4b5563">ऑटो-रिफंड UPI:</span>
                 <div style="font-size:18px;font-weight:800;color:#059669;margin-top:3px" id="currentAutoRefund">चालू (Active)</div>
               </div>
@@ -469,6 +473,35 @@ input:focus,select:focus{border-color:var(--blue)}
               <label>🌊 फ़्लो सेंसर कैलिब्रेशन पल्स (Pulses Per Litre - K-Factor)</label>
               <input type="number" id="pulsesPerLitreInput" step="1" min="100" max="2000" placeholder="e.g. 450 (480, 500, 515)">
               <small style="font-size:11px;color:#0284c7">💡 <b>Jar भरते समय पानी 2-3L ज़्यादा गिरे तो यह नंबर बढ़ाएं</b> (जैसे 490, 510 या 520)। अगर पानी कम गिरे तो घटाएं (जैसे 420)।</small>
+            </div>
+          </div>
+
+          <!-- PUSH BUTTON & DISPENSE TRIGGER MODE CONTROLS -->
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;margin-top:14px">
+            <h4 style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px">🔘 पानी डिस्पेंस मोड व पुश बटन सेटिंग्स (Water Waste Safety)</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label>डिस्पेंस मोड (Dispense Trigger)</label>
+                <select id="dispenseModeSelect">
+                  <option value="button">👉 बटन दबाने पर पानी चालू हो (सुरक्षित - जार रखने के बाद)</option>
+                  <option value="auto">⚡ ऑटोमेटिक (QR / कार्ड स्कैन होते ही तुरंत पानी निकले)</option>
+                </select>
+                <small style="font-size:11px;color:#3b82f6">बटन मोड में पेमेंट के बाद हरी LED जलेगी और ग्राहक जब स्टार्ट बटन दबाएगा तभी पानी निकलेगा</small>
+              </div>
+              <div class="form-group">
+                <label>⏱️ स्टार्ट बटन का इंतज़ार (सेकंड में)</label>
+                <input type="number" id="waitButtonSecondsInput" step="5" min="10" max="300" placeholder="e.g. 60">
+                <small style="font-size:11px;color:#64748b">अगर इतने सेकंड में जार रखकर स्टार्ट बटन न दबे तो आर्डर कैंसिल व ऑटो-रिफंड हो जाए</small>
+              </div>
+            </div>
+            <div style="margin-top:10px">
+              <label style="display:flex;align-items:center;gap:8px;font-weight:700;color:#1e3a5f;cursor:pointer">
+                <input type="checkbox" id="multiQuantityToggle" checked style="width:18px;height:18px">
+                <span>🔘 मल्टी-क्वांटिटी बटन (1L, 5L, 10L, 20L) कार्ड पर चालू रखें</span>
+              </label>
+              <small style="display:block;margin-top:4px;color:#64748b;font-size:11px">
+                कार्ड स्कैन करने पर ग्राहक 1L, 5L, 10L या 20L का बटन दबाकर अपनी पसंद का पानी ले सकेगा और कार्ड से सिर्फ उतने ही लीटर का पैसा कटेगा।
+              </small>
             </div>
           </div>
 
@@ -1668,6 +1701,18 @@ async function loadPrice(){
       document.getElementById('currentPulsesPerLitre').textContent = `${res.pulses_per_litre} P/L`;
       document.getElementById('pulsesPerLitreInput').value = res.pulses_per_litre;
     }
+    if(res.dispense_mode) {
+      document.getElementById('dispenseModeSelect').value = res.dispense_mode;
+      const isBtn = res.dispense_mode === 'button';
+      document.getElementById('currentDispenseMode').textContent = isBtn ? 'बटन मोड (Safe)' : 'ऑटोमेटिक (तुरंत)';
+      document.getElementById('currentDispenseMode').style.color = isBtn ? '#2563eb' : '#059669';
+    }
+    if(res.wait_button_seconds) {
+      document.getElementById('waitButtonSecondsInput').value = res.wait_button_seconds;
+    }
+    if(res.multi_quantity_enabled !== undefined) {
+      document.getElementById('multiQuantityToggle').checked = res.multi_quantity_enabled !== false;
+    }
     if(res.auto_refund_upi !== undefined) {
       const isUpiOn = res.auto_refund_upi !== false;
       document.getElementById('autoRefundUpiToggle').checked = isUpiOn;
@@ -1706,6 +1751,9 @@ async function updatePrice(){
     order_expiry_seconds: document.getElementById('orderExpirySecondsInput').value,
     flow_stall_seconds: document.getElementById('flowStallSecondsInput').value,
     pulses_per_litre: document.getElementById('pulsesPerLitreInput').value,
+    dispense_mode: document.getElementById('dispenseModeSelect').value,
+    wait_button_seconds: document.getElementById('waitButtonSecondsInput').value,
+    multi_quantity_enabled: document.getElementById('multiQuantityToggle').checked,
     auto_refund_upi: document.getElementById('autoRefundUpiToggle').checked,
     razorpay_key_id: document.getElementById('rzpKeyInput').value,
     razorpay_key_secret: document.getElementById('rzpSecretInput').value,

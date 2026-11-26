@@ -1467,7 +1467,34 @@ app.post('/api/machine/complete', (req, res) => {
     const actL = (actual_litres !== undefined) ? parseFloat(actual_litres) : order.litres;
     order.actual_dispensed_litres = isNaN(actL) ? 0 : actL;
 
-    if (status === 'failed_no_water' || (actL < (order.litres * 0.5) && order.litres >= 1)) {
+    if (status === 'cancelled_user' || status === 'timeout_no_jar') {
+      order.status = 'cancelled_user';
+      order.failed_at = nowIST();
+      order.failure_reason = reason || (status === 'cancelled_user' ? 'Customer Cancel Button Pressed' : 'Jar not placed / Start button timeout');
+      console.log(`🛑 Order ${order_id} CANCELLED by user or button timeout! Triggering auto-refund.`);
+
+      const autoRefundEnabled = db.settings?.auto_refund_upi !== false;
+      if (autoRefundEnabled && order.payment_id && order.payment_id.startsWith('pay_')) {
+        const amtPaise = Math.round((order.amount_rs || 20) * 100);
+        triggerRazorpayRefund(order.payment_id, amtPaise, 'User Cancelled / Button Timeout')
+          .then(ref => {
+            if (ref) {
+              order.status = 'auto_refunded';
+              order.refund_id = ref.id;
+              order.refunded_at = nowIST();
+              order.refund_method = 'RAZORPAY_UPI';
+              saveDB(db);
+              console.log(`✅ Cancelled Order ${order_id} AUTO-REFUNDED via Razorpay (Refund ID: ${ref.id})`);
+            }
+          }).catch(e => console.error('Cancellation refund error:', e.message));
+      }
+
+      const txn = db.transactions.find(t => t.id === order_id || (order.payment_id && t.payment_ref === order.payment_id));
+      if (txn && !txn.note.includes('[CANCELLED]') && !txn.note.includes('[AUTO-REFUNDED]')) {
+        txn.note = `[CANCELLED - Water Not Dispensed] ` + txn.note;
+        txn.status = 'CANCELLED';
+      }
+    } else if (status === 'failed_no_water' || (actL < (order.litres * 0.5) && order.litres >= 1)) {
       order.status = 'failed_no_water';
       order.failed_at = nowIST();
       order.failure_reason = reason || 'Tank khali / Motor error (Dry-run stopped)';
@@ -1573,6 +1600,9 @@ app.get('/api/machine/sync-cards', (req, res) => {
     flow_stall_seconds: parseInt(db.settings.flow_stall_seconds || 6, 10),
     order_expiry_seconds: parseInt(db.settings.order_expiry_seconds || 90, 10),
     pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
+    dispense_mode: db.settings.dispense_mode || 'button', // 'button' or 'auto'
+    wait_button_seconds: parseInt(db.settings.wait_button_seconds || 60, 10),
+    multi_quantity_enabled: db.settings.multi_quantity_enabled !== false,
     cards: cards
   });
 });
@@ -1648,7 +1678,7 @@ app.post('/api/customers/:id/toggle-offline', (req, res) => {
   });
 });
 
-// ── GET/POST Machine Settings (Card Default Litres, Price, Razorpay Keys, Offline Safety Timer, Flow Stall Timer, Pulses Per Litre) ──
+// ── GET/POST Machine Settings (Card Default Litres, Price, Razorpay Keys, Offline Safety Timer, Flow Stall Timer, Pulses Per Litre, Dispense Mode, Buttons) ──
 app.get('/api/settings', (req, res) => {
   const db = loadDB();
   res.json({
@@ -1658,6 +1688,9 @@ app.get('/api/settings', (req, res) => {
     order_expiry_seconds: db.settings.order_expiry_seconds || 90,
     flow_stall_seconds: db.settings.flow_stall_seconds || 6,
     pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
+    dispense_mode: db.settings.dispense_mode || 'button', // 'button' or 'auto'
+    wait_button_seconds: parseInt(db.settings.wait_button_seconds || 60, 10),
+    multi_quantity_enabled: db.settings.multi_quantity_enabled !== false,
     auto_refund_upi: db.settings.auto_refund_upi !== false,
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID,
     razorpay_key_secret: db.settings.razorpay_key_secret ? '••••••••••••••••' : '••••••••••••••••'
@@ -1665,7 +1698,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', (req, res) => {
-  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, pulses_per_litre, auto_refund_upi } = req.body;
+  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, pulses_per_litre, dispense_mode, wait_button_seconds, multi_quantity_enabled, auto_refund_upi } = req.body;
   if (!verifyAdmin(req)) {
     return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
   }
@@ -1696,6 +1729,18 @@ app.post('/api/settings', (req, res) => {
       db.settings.pulses_per_litre = ppl;
     }
   }
+  if (dispense_mode !== undefined) {
+    db.settings.dispense_mode = (dispense_mode === 'auto') ? 'auto' : 'button';
+  }
+  if (wait_button_seconds !== undefined) {
+    const wb = parseInt(wait_button_seconds, 10);
+    if (!isNaN(wb) && wb >= 10 && wb <= 300) {
+      db.settings.wait_button_seconds = wb;
+    }
+  }
+  if (multi_quantity_enabled !== undefined) {
+    db.settings.multi_quantity_enabled = (multi_quantity_enabled === true || multi_quantity_enabled === 'true');
+  }
   if (auto_refund_upi !== undefined) {
     db.settings.auto_refund_upi = (auto_refund_upi === true || auto_refund_upi === 'true');
   }
@@ -1708,7 +1753,7 @@ app.post('/api/settings', (req, res) => {
   saveDB(db);
   initRazorpayFromDB();
 
-  console.log(`⚙️ Settings updated: Rate=₹${(db.price.paise_per_litre/100).toFixed(2)}/L, Card Default=${db.settings.default_card_litres}L, Offline Timer=${db.settings.order_expiry_seconds || 90}s, Flow Stall=${db.settings.flow_stall_seconds || 6}s, Pulses/L=${db.settings.pulses_per_litre || 450}, Auto-Refund=${db.settings.auto_refund_upi !== false}`);
+  console.log(`⚙️ Settings updated: Rate=₹${(db.price.paise_per_litre/100).toFixed(2)}/L, Card Default=${db.settings.default_card_litres}L, Mode=${db.settings.dispense_mode || 'button'}, WaitBtn=${db.settings.wait_button_seconds || 60}s, MultiQty=${db.settings.multi_quantity_enabled !== false}, Pulses/L=${db.settings.pulses_per_litre || 450}`);
   res.json({
     success: true,
     message: '✅ Settings update ho gayi!',
@@ -1716,6 +1761,9 @@ app.post('/api/settings', (req, res) => {
     order_expiry_seconds: db.settings.order_expiry_seconds || 90,
     flow_stall_seconds: db.settings.flow_stall_seconds || 6,
     pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
+    dispense_mode: db.settings.dispense_mode || 'button',
+    wait_button_seconds: db.settings.wait_button_seconds || 60,
+    multi_quantity_enabled: db.settings.multi_quantity_enabled !== false,
     auto_refund_upi: db.settings.auto_refund_upi !== false,
     price_per_litre_rs: (db.price.paise_per_litre / 100).toFixed(2),
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID
