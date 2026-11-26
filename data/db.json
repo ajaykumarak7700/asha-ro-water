@@ -1,295 +1,317 @@
 {
-  "customers": [
-    {
-      "id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "name": "AJAY KUSHWAHA",
-      "phone": "7700828989",
-      "address": "BANWARIYA",
-      "card_uid": "9E 52 FD 03",
-      "status": "active",
-      "created_at": "23/9/2026, 3:31:39 pm",
-      "razorpay_qr_id": "qr_U4373bA7s0QeVr",
-      "razorpay_qr_image": "https://rzp.io/rzp/4KV2rlQ0"
-    }
-  ],
-  "wallets": {
-    "6d0324fb-094c-463a-80ba-87753ee08adc": 47400
-  },
-  "transactions": [
-    {
-      "id": "REF_C9E28F38",
-      "customer_id": "QR_BUYER",
-      "customer_name": "Test Offline User",
-      "card_uid": "CASH_REFUND",
-      "type": "REFUND",
-      "amount_paise": -2000,
-      "note": "💵 Cash Refund: ₹20 wapas kiya (Order ORD_B5183262)",
-      "payment_ref": "ORD_B5183262",
-      "created_at": "26/11/2026, 6:42:59 pm"
-    },
-    {
-      "id": "ORD_B5183262",
-      "customer_id": "QR_BUYER",
-      "customer_name": "Test Offline User",
-      "card_uid": "UPI_QR",
-      "type": "DISPENSE",
-      "amount_paise": 2000,
-      "note": "QR Pay: ₹20 -> 20L Water",
-      "payment_ref": "ORD_B5183262",
-      "created_at": "26/11/2026, 6:42:41 pm"
-    },
-    {
-      "id": "DSP_964DBFC4",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 100,
-      "note": "1 Liter Dispensed",
-      "payment_ref": "DSP_964DBFC4",
-      "created_at": "24/11/2026, 3:59:18 pm"
-    },
-    {
-      "id": "DSP_A92F5556",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 100,
-      "note": "1 Liter Dispensed",
-      "payment_ref": "DSP_A92F5556",
-      "created_at": "24/11/2026, 3:59:11 pm"
-    },
-    {
-      "id": "DSP_5E6517FB",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 100,
-      "note": "1 Liter Dispensed",
-      "payment_ref": "DSP_5E6517FB",
-      "created_at": "24/11/2026, 3:59:03 pm"
-    },
-    {
-      "id": "DSP_7A6AB92C",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 100,
-      "note": "1 Liter Dispensed",
-      "payment_ref": "DSP_7A6AB92C",
-      "created_at": "24/11/2026, 3:49:06 pm"
-    },
-    {
-      "id": "DSP_D3E33B48",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 100,
-      "note": "1 Liter Dispensed",
-      "payment_ref": "DSP_D3E33B48",
-      "created_at": "24/11/2026, 3:48:57 pm"
-    },
-    {
-      "id": "DSP_F6F9B719",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 100,
-      "note": "1 Liter Dispensed",
-      "payment_ref": "DSP_F6F9B719",
-      "created_at": "24/11/2026, 2:45:48 pm"
-    },
-    {
-      "id": "DSP_71A19772",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 100,
-      "note": "1 Liter Dispensed",
-      "payment_ref": "DSP_71A19772",
-      "created_at": "24/11/2026, 2:45:41 pm"
-    },
-    {
-      "id": "DSP_39C63374",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 100,
-      "note": "1 Liter Dispensed",
-      "payment_ref": "DSP_39C63374",
-      "created_at": "24/11/2026, 1:07:24 pm"
-    },
-    {
-      "id": "DSP_713A9DB2",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 100,
-      "note": "1 Liter Dispensed",
-      "payment_ref": "DSP_713A9DB2",
-      "created_at": "24/11/2026, 1:07:17 pm"
-    },
-    {
-      "id": "DSP_C7EC9AB3",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 100,
-      "note": "1 Liter Dispensed",
-      "payment_ref": "DSP_C7EC9AB3",
-      "created_at": "24/11/2026, 1:07:11 pm"
-    },
-    {
-      "id": "DSP_81ED1C24",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 200,
-      "note": "2 Liter Dispensed",
-      "payment_ref": "DSP_81ED1C24",
-      "created_at": "24/11/2026, 12:39:55 pm"
-    },
-    {
-      "id": "DSP_07FA0813",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 200,
-      "note": "2 Liter Dispensed",
-      "payment_ref": "DSP_07FA0813",
-      "created_at": "24/11/2026, 12:39:03 pm"
-    },
-    {
-      "id": "DSP_204AB755",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 200,
-      "note": "2 Liter Dispensed",
-      "payment_ref": "DSP_204AB755",
-      "created_at": "24/11/2026, 12:37:56 pm"
-    },
-    {
-      "id": "DSP_6419C868",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 200,
-      "note": "2 Liter Dispensed",
-      "payment_ref": "DSP_6419C868",
-      "created_at": "24/11/2026, 12:36:54 pm"
-    },
-    {
-      "id": "DSP_8B692D20",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 200,
-      "note": "2 Liter Dispensed",
-      "payment_ref": "DSP_8B692D20",
-      "created_at": "24/11/2026, 12:36:44 pm"
-    },
-    {
-      "id": "DSP_96E6076F",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 200,
-      "note": "2 Liter Dispensed",
-      "payment_ref": "DSP_96E6076F",
-      "created_at": "24/11/2026, 12:36:37 pm"
-    },
-    {
-      "id": "DSP_E8BA18CE",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 200,
-      "note": "2 Liter Dispensed",
-      "payment_ref": "DSP_E8BA18CE",
-      "created_at": "24/11/2026, 12:36:21 pm"
-    },
-    {
-      "id": "DSP_EF55697B",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "DISPENSE",
-      "amount_paise": 200,
-      "note": "2 Liter Dispensed",
-      "payment_ref": "DSP_EF55697B",
-      "created_at": "24/11/2026, 12:35:34 pm"
-    },
-    {
-      "id": "ADMIN_RECHARGE_500",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "RECHARGE",
-      "amount_paise": 50000,
-      "note": "Admin Recharge - Rs 500 Balance Set",
-      "payment_ref": "MANUAL_500",
-      "created_at": "23/11/2026, 6:35:08 pm"
-    },
-    {
-      "id": "SIM_1295098C",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "RECHARGE",
-      "amount_paise": 5000,
-      "note": "UPI Payment (TEST MODE)",
-      "payment_ref": "SIM_1295098C",
-      "created_at": "23/9/2026, 3:33:14 pm"
-    },
-    {
-      "id": "797c3afe-3bf1-4da0-b777-da988af79db8",
-      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
-      "customer_name": "AJAY KUSHWAHA",
-      "card_uid": "9E 52 FD 03",
-      "type": "RECHARGE",
-      "amount_paise": 20000,
-      "note": "Opening Balance",
-      "payment_ref": null,
-      "created_at": "23/9/2026, 3:31:39 pm"
-    }
-  ],
   "price": {
     "paise_per_litre": 100
+  },
+  "wallets": {
+    "2172fcb0-4cbb-46f4-a8ee-d1eb5c1fe851": 0,
+    "61c91d8d-95e5-4c1a-9c42-3bca39452696": 0,
+    "6d0324fb-094c-463a-80ba-87753ee08adc": 47400
   },
   "settings": {
     "default_card_litres": 1,
     "order_expiry_seconds": 90
   },
+  "customers": [
+    {
+      "id": "2172fcb0-4cbb-46f4-a8ee-d1eb5c1fe851",
+      "name": "RAJU KUSHWAHA",
+      "phone": "8123020750",
+      "status": "active",
+      "address": "MADHUBANI",
+      "card_uid": "A4 81 E0 B6",
+      "created_at": "26/11/2026, 8:36:09 pm",
+      "razorpay_qr_id": "qr_U4qv6Iw3941oP1",
+      "razorpay_qr_image": "https://rzp.io/rzp/MgZo0by"
+    },
+    {
+      "id": "61c91d8d-95e5-4c1a-9c42-3bca39452696",
+      "name": "MANTU CHABHI",
+      "phone": "9876543210",
+      "status": "active",
+      "address": "MADHUBANI",
+      "card_uid": "73 C5 EE 2C",
+      "created_at": "26/11/2026, 8:35:44 pm"
+    },
+    {
+      "id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "name": "AJAY KUSHWAHA",
+      "phone": "7700828989",
+      "status": "active",
+      "address": "BANWARIYA",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "23/9/2026, 3:31:39 pm",
+      "razorpay_qr_id": "qr_U4373bA7s0QeVr",
+      "razorpay_qr_image": "https://rzp.io/rzp/4KV2rlQ0"
+    }
+  ],
+  "transactions": [
+    {
+      "id": "REF_C9E28F38",
+      "note": "💵 Cash Refund: ₹20 wapas kiya (Order ORD_B5183262)",
+      "type": "REFUND",
+      "card_uid": "CASH_REFUND",
+      "created_at": "26/11/2026, 6:42:59 pm",
+      "customer_id": "QR_BUYER",
+      "payment_ref": "ORD_B5183262",
+      "amount_paise": -2000,
+      "customer_name": "Test Offline User"
+    },
+    {
+      "id": "ORD_B5183262",
+      "note": "QR Pay: ₹20 -> 20L Water",
+      "type": "DISPENSE",
+      "card_uid": "UPI_QR",
+      "created_at": "26/11/2026, 6:42:41 pm",
+      "customer_id": "QR_BUYER",
+      "payment_ref": "ORD_B5183262",
+      "amount_paise": 2000,
+      "customer_name": "Test Offline User"
+    },
+    {
+      "id": "DSP_964DBFC4",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 3:59:18 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_964DBFC4",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_A92F5556",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 3:59:11 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_A92F5556",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_5E6517FB",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 3:59:03 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_5E6517FB",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_7A6AB92C",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 3:49:06 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_7A6AB92C",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_D3E33B48",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 3:48:57 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_D3E33B48",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_F6F9B719",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 2:45:48 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_F6F9B719",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_71A19772",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 2:45:41 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_71A19772",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_39C63374",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 1:07:24 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_39C63374",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_713A9DB2",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 1:07:17 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_713A9DB2",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_C7EC9AB3",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 1:07:11 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_C7EC9AB3",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_81ED1C24",
+      "note": "2 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 12:39:55 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_81ED1C24",
+      "amount_paise": 200,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_07FA0813",
+      "note": "2 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 12:39:03 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_07FA0813",
+      "amount_paise": 200,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_204AB755",
+      "note": "2 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 12:37:56 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_204AB755",
+      "amount_paise": 200,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_6419C868",
+      "note": "2 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 12:36:54 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_6419C868",
+      "amount_paise": 200,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_8B692D20",
+      "note": "2 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 12:36:44 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_8B692D20",
+      "amount_paise": 200,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_96E6076F",
+      "note": "2 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 12:36:37 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_96E6076F",
+      "amount_paise": 200,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_E8BA18CE",
+      "note": "2 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 12:36:21 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_E8BA18CE",
+      "amount_paise": 200,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_EF55697B",
+      "note": "2 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "24/11/2026, 12:35:34 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_EF55697B",
+      "amount_paise": 200,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "ADMIN_RECHARGE_500",
+      "note": "Admin Recharge - Rs 500 Balance Set",
+      "type": "RECHARGE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "23/11/2026, 6:35:08 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "MANUAL_500",
+      "amount_paise": 50000,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "SIM_1295098C",
+      "note": "UPI Payment (TEST MODE)",
+      "type": "RECHARGE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "23/9/2026, 3:33:14 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "SIM_1295098C",
+      "amount_paise": 5000,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "797c3afe-3bf1-4da0-b777-da988af79db8",
+      "note": "Opening Balance",
+      "type": "RECHARGE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "23/9/2026, 3:31:39 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": null,
+      "amount_paise": 20000,
+      "customer_name": "AJAY KUSHWAHA"
+    }
+  ],
   "pending_orders": [
     {
       "id": "ORD_B5183262",
-      "amount_rs": 20,
       "litres": 20,
-      "customer_name": "Test Offline User",
-      "customer_id": null,
       "status": "dismissed",
+      "amount_rs": 20,
       "created_at": "26/11/2026, 6:42:41 pm",
-      "created_at_ms": 1795698761792,
-      "resolved_at": "26/11/2026, 6:43:16 pm",
       "resolution": "CASH_REFUND",
-      "refund_note": "₹20 Cash refunded to customer by Admin"
+      "customer_id": null,
+      "refund_note": "₹20 Cash refunded to customer by Admin",
+      "resolved_at": "26/11/2026, 6:43:16 pm",
+      "created_at_ms": 1795698761792,
+      "customer_name": "Test Offline User"
     }
   ],
   "cashback_wallets": {

@@ -111,7 +111,8 @@ async function tryConnectPg(connStr, description) {
 
 async function establishDatabaseConnection() {
   if (!Pool) return null;
-  const rawUrl = process.env.DATABASE_URL;
+  const NEON_DEFAULT_URL = 'postgresql://neondb_owner:npg_L4Fhi8CdQnYo@ep-morning-glitter-bibjfdx1-pooler.c-5.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+  const rawUrl = process.env.DATABASE_URL || NEON_DEFAULT_URL;
   if (!rawUrl) return null;
 
   // 1. Direct connection test
@@ -399,17 +400,42 @@ app.get('/api/cloud-status', async (req, res) => {
   } else {
     pgStatus = activePgError ? `failed (${activePgError})` : 'no_pool (DATABASE_URL missing or Pool failed)';
   }
+  const providerName = (activePgHost && activePgHost.includes('neon.tech')) ? 'Neon Cloud PostgreSQL' : 'PostgreSQL Cloud';
   res.json({
     success: true,
+    provider: providerName,
     has_db_url: !!process.env.DATABASE_URL,
-    db_url_starts_with: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 18) + '...' : 'none',
     active_host: activePgHost,
     pg_status: pgStatus,
     pg_error: pgError,
+    cloud_customers_count: pgCount,
+    cloud_customers: pgCustomers,
     supabase_customers_count: pgCount,
     supabase_customers: pgCustomers,
     memory_customers_count: memoryDB ? (memoryDB.customers ? memoryDB.customers.length : 0) : 0
   });
+});
+
+// ── Admin Sync Directly from Cloud Database into Local Cache ──
+app.post('/api/admin/sync-from-cloud', async (req, res) => {
+  if (!verifyAdmin(req)) {
+    return res.status(403).json({ success: false, message: '❌ Unauthorized! एडमिन पासवर्ड से लॉगिन करें।' });
+  }
+  if (!pgPool) {
+    return res.status(500).json({ success: false, message: '❌ Neon Cloud database connect nahi hai.' });
+  }
+  try {
+    const qRes = await pgPool.query("SELECT data FROM app_state WHERE key = 'asha_ro_water_db'");
+    if (qRes && qRes.rows && qRes.rows.length > 0 && qRes.rows[0].data) {
+      memoryDB = qRes.rows[0].data;
+      try { fs.writeFileSync(DB_FILE, JSON.stringify(memoryDB, null, 2)); } catch(e){}
+      return res.json({ success: true, count: memoryDB.customers ? memoryDB.customers.length : 0, message: 'Neon Cloud se latest data sync ho gaya!' });
+    } else {
+      return res.json({ success: false, message: 'Cloud database me koi data nahi mila.' });
+    }
+  } catch(e) {
+    return res.status(500).json({ success: false, message: 'Sync error: ' + e.message });
+  }
 });
 
 // ── Admin Export Complete Database (JSON Backup) ──

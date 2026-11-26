@@ -538,7 +538,7 @@ input:focus,select:focus{border-color:var(--blue)}
 
           <!-- CLOUD DATABASE STATUS & BACKUP / RESTORE BOX -->
           <div style="border-top:2px dashed #cbd5e1;padding-top:16px;margin-top:20px">
-            <h4 style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:8px">☁️ Cloud Database & Permanent Card Backup</h4>
+            <h4 style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:8px">☁️ Neon Cloud Database & Permanent Card Backup</h4>
             <div id="cloudStatusCard" style="background:#f1f5f9;padding:12px;border-radius:8px;font-size:12px;color:#334155;margin-bottom:12px">
               <div id="cloudDbBadge">जाँच हो रही है...</div>
             </div>
@@ -547,7 +547,10 @@ input:focus,select:focus{border-color:var(--blue)}
                 📥 Full Database Backup (.JSON Download)
               </a>
               <button class="btn btn-outline" onclick="openImportDbModal()" style="font-size:12px;padding:8px 14px">
-                📤 Restore Database from JSON
+                📤 Restore / Import Backup
+              </button>
+              <button class="btn btn-outline" onclick="syncFromCloudDirect()" style="font-size:12px;padding:8px 14px">
+                🔄 Sync from Neon Cloud
               </button>
             </div>
           </div>
@@ -1732,15 +1735,37 @@ async function checkCloudStatus(){
   if (!statusEl) return;
   const res = await fetch('/api/cloud-status').then(r=>r.json()).catch(()=>null);
   if (res && res.success) {
+    const custCount = (res.cloud_customers_count !== undefined) ? res.cloud_customers_count : res.supabase_customers_count;
     if (res.pg_status === 'connected') {
-      statusEl.innerHTML = `<span style="color:#16a34a;font-weight:700">🟢 Supabase PostgreSQL Cloud Connected</span><br>` +
-        `<span style="color:#64748b">Host: ${res.active_host || 'Cloud'} | Cloud Database me <b>${res.supabase_customers_count}</b> Cards surakshit saved hain. Code update par bhi cards gayab nahi honge.</span>`;
+      const provider = res.provider || (res.active_host && res.active_host.includes('neon.tech') ? 'Neon Cloud PostgreSQL' : 'Cloud PostgreSQL');
+      statusEl.innerHTML = `<span style="color:#16a34a;font-weight:700">🟢 ${provider} Connected</span><br>` +
+        `<span style="color:#64748b">Host: <b>${res.active_host || 'Neon AWS Singapore'}</b> | Cloud Database me <b>${custCount}</b> Cards & Wallets 100% surakshit saved hain.</span>`;
     } else {
       statusEl.innerHTML = `<span style="color:#dc2626;font-weight:700">⚠️ Cloud Database Disconnected (${res.pg_error || res.pg_status})</span><br>` +
         `<span style="color:#64748b">Local disk storage active (${res.memory_customers_count} cards). Neeche diye button se Backup download karke surakshit rakhein.</span>`;
     }
   } else {
     statusEl.innerHTML = `<span style="color:#64748b">Cloud status check nahi ho saka.</span>`;
+  }
+}
+
+async function syncFromCloudDirect() {
+  const pin = prompt('Neon Cloud se Data Sync karne ke liye Admin PIN dalein:');
+  if (!pin) return;
+  try {
+    const res = await fetch('/api/admin/sync-from-cloud', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': pin }
+    }).then(r => r.json());
+    if (res && res.success) {
+      alert('✅ ' + res.message + '\nTotal Cards: ' + res.count);
+      loadCustomers();
+      checkCloudStatus();
+    } else {
+      alert('❌ ' + (res?.message || 'Sync fail ho gaya'));
+    }
+  } catch(e) {
+    alert('❌ Error: ' + e.message);
   }
 }
 
