@@ -1572,6 +1572,7 @@ app.get('/api/machine/sync-cards', (req, res) => {
     default_card_litres: parseFloat(db.settings.default_card_litres || 2),
     flow_stall_seconds: parseInt(db.settings.flow_stall_seconds || 6, 10),
     order_expiry_seconds: parseInt(db.settings.order_expiry_seconds || 90, 10),
+    pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
     cards: cards
   });
 });
@@ -1647,7 +1648,7 @@ app.post('/api/customers/:id/toggle-offline', (req, res) => {
   });
 });
 
-// ── GET/POST Machine Settings (Card Default Litres, Price, Razorpay Keys, Offline Safety Timer, Flow Stall Timer) ──
+// ── GET/POST Machine Settings (Card Default Litres, Price, Razorpay Keys, Offline Safety Timer, Flow Stall Timer, Pulses Per Litre) ──
 app.get('/api/settings', (req, res) => {
   const db = loadDB();
   res.json({
@@ -1656,6 +1657,7 @@ app.get('/api/settings', (req, res) => {
     default_card_litres: db.settings.default_card_litres || 20,
     order_expiry_seconds: db.settings.order_expiry_seconds || 90,
     flow_stall_seconds: db.settings.flow_stall_seconds || 6,
+    pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
     auto_refund_upi: db.settings.auto_refund_upi !== false,
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID,
     razorpay_key_secret: db.settings.razorpay_key_secret ? '••••••••••••••••' : '••••••••••••••••'
@@ -1663,7 +1665,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', (req, res) => {
-  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, auto_refund_upi } = req.body;
+  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, pulses_per_litre, auto_refund_upi } = req.body;
   if (!verifyAdmin(req)) {
     return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
   }
@@ -1688,6 +1690,12 @@ app.post('/api/settings', (req, res) => {
       db.settings.flow_stall_seconds = fSec;
     }
   }
+  if (pulses_per_litre !== undefined) {
+    const ppl = parseFloat(pulses_per_litre);
+    if (!isNaN(ppl) && ppl >= 50 && ppl <= 3000) {
+      db.settings.pulses_per_litre = ppl;
+    }
+  }
   if (auto_refund_upi !== undefined) {
     db.settings.auto_refund_upi = (auto_refund_upi === true || auto_refund_upi === 'true');
   }
@@ -1700,13 +1708,14 @@ app.post('/api/settings', (req, res) => {
   saveDB(db);
   initRazorpayFromDB();
 
-  console.log(`⚙️ Settings updated: Rate=₹${(db.price.paise_per_litre/100).toFixed(2)}/L, Card Default=${db.settings.default_card_litres}L, Offline Timer=${db.settings.order_expiry_seconds || 90}s, Flow Stall=${db.settings.flow_stall_seconds || 6}s, Auto-Refund=${db.settings.auto_refund_upi !== false}`);
+  console.log(`⚙️ Settings updated: Rate=₹${(db.price.paise_per_litre/100).toFixed(2)}/L, Card Default=${db.settings.default_card_litres}L, Offline Timer=${db.settings.order_expiry_seconds || 90}s, Flow Stall=${db.settings.flow_stall_seconds || 6}s, Pulses/L=${db.settings.pulses_per_litre || 450}, Auto-Refund=${db.settings.auto_refund_upi !== false}`);
   res.json({
     success: true,
     message: '✅ Settings update ho gayi!',
     default_card_litres: db.settings.default_card_litres,
     order_expiry_seconds: db.settings.order_expiry_seconds || 90,
     flow_stall_seconds: db.settings.flow_stall_seconds || 6,
+    pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
     auto_refund_upi: db.settings.auto_refund_upi !== false,
     price_per_litre_rs: (db.price.paise_per_litre / 100).toFixed(2),
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID

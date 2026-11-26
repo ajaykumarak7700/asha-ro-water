@@ -430,6 +430,10 @@ input:focus,select:focus{border-color:var(--blue)}
                 <div style="font-size:22px;font-weight:800;color:#d97706" id="currentStallSeconds">6 Sec</div>
               </div>
               <div>
+                <span style="font-size:11px;color:#4b5563">फ़्लो सेंसर पल्स:</span>
+                <div style="font-size:22px;font-weight:800;color:#0284c7" id="currentPulsesPerLitre">450 P/L</div>
+              </div>
+              <div>
                 <span style="font-size:11px;color:#4b5563">ऑटो-रिफंड UPI:</span>
                 <div style="font-size:18px;font-weight:800;color:#059669;margin-top:3px" id="currentAutoRefund">चालू (Active)</div>
               </div>
@@ -457,6 +461,14 @@ input:focus,select:focus{border-color:var(--blue)}
               <label>🛑 टंकी खाली / नो-फ़्लो टाइमर (सेकंड में)</label>
               <input type="number" id="flowStallSecondsInput" step="1" min="2" max="60" placeholder="e.g. 6 (4, 6, 8, 10)">
               <small style="font-size:11px;color:#64748b">पंप ऑन होने पर इतने सेकंड पानी न निकले तो मोटर बंद हो और रिफंड हो</small>
+            </div>
+          </div>
+
+          <div class="form-row" style="margin-top:10px">
+            <div class="form-group">
+              <label>🌊 फ़्लो सेंसर कैलिब्रेशन पल्स (Pulses Per Litre - K-Factor)</label>
+              <input type="number" id="pulsesPerLitreInput" step="1" min="100" max="2000" placeholder="e.g. 450 (480, 500, 515)">
+              <small style="font-size:11px;color:#0284c7">💡 <b>Jar भरते समय पानी 2-3L ज़्यादा गिरे तो यह नंबर बढ़ाएं</b> (जैसे 490, 510 या 520)। अगर पानी कम गिरे तो घटाएं (जैसे 420)।</small>
             </div>
           </div>
 
@@ -1652,6 +1664,10 @@ async function loadPrice(){
       document.getElementById('currentStallSeconds').textContent = `${res.flow_stall_seconds} Sec`;
       document.getElementById('flowStallSecondsInput').value = res.flow_stall_seconds;
     }
+    if(res.pulses_per_litre) {
+      document.getElementById('currentPulsesPerLitre').textContent = `${res.pulses_per_litre} P/L`;
+      document.getElementById('pulsesPerLitreInput').value = res.pulses_per_litre;
+    }
     if(res.auto_refund_upi !== undefined) {
       const isUpiOn = res.auto_refund_upi !== false;
       document.getElementById('autoRefundUpiToggle').checked = isUpiOn;
@@ -1689,6 +1705,7 @@ async function updatePrice(){
     default_card_litres: document.getElementById('defaultCardLitresInput').value,
     order_expiry_seconds: document.getElementById('orderExpirySecondsInput').value,
     flow_stall_seconds: document.getElementById('flowStallSecondsInput').value,
+    pulses_per_litre: document.getElementById('pulsesPerLitreInput').value,
     auto_refund_upi: document.getElementById('autoRefundUpiToggle').checked,
     razorpay_key_id: document.getElementById('rzpKeyInput').value,
     razorpay_key_secret: document.getElementById('rzpSecretInput').value,
