@@ -444,14 +444,43 @@ input:focus,select:focus{border-color:var(--blue)}
             </div>
           </div>
 
+          
           <div class="form-row">
             <div class="form-group">
-              <label>Naya Price (₹ per Litre)</label>
+              <label>Standard Flat Rate (₹ per Litre)</label>
               <input type="number" id="newPriceInput" step="0.25" min="0.25" placeholder="e.g. 1.00">
             </div>
             <div class="form-group">
-              <label>Card Scan Par Kitna Paani (Litres)</label>
+              <label>Card Scan Par Default Litres</label>
               <input type="number" id="defaultCardLitresInput" step="1" min="1" placeholder="e.g. 20">
+            </div>
+          </div>
+
+          <!-- QUANTITY PRICING / SLAB OFFER BOX -->
+          <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:14px;margin:14px 0">
+            <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:4px">
+              🏷️ मात्रा अनुसार रेट (Quantity Pricing / स्लैब ऑफर)
+            </div>
+            <div style="font-size:11px;color:#64748b;margin-bottom:10px">
+              बटन दबाने पर कार्ड से कितने रुपये कटेंगे, यहाँ अपनी पसंद से तय करें (जैसे 20L जार = ₹15 ऑफर):
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:10px">
+              <div>
+                <label style="font-size:11px;font-weight:700;color:#334155">1 Litre रेट (₹)</label>
+                <input type="number" id="tier1LInput" step="0.5" min="0.5" class="form-control" style="font-weight:700;padding:6px 10px" value="1.0">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:700;color:#334155">5 Litres रेट (₹)</label>
+                <input type="number" id="tier5LInput" step="0.5" min="1" class="form-control" style="font-weight:700;padding:6px 10px" value="5.0">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:700;color:#334155">10 Litres रेट (₹)</label>
+                <input type="number" id="tier10LInput" step="1" min="1" class="form-control" style="font-weight:700;padding:6px 10px" value="10.0">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:700;color:#15803d">⭐ 20L जार ऑफर (₹)</label>
+                <input type="number" id="tier20LInput" step="1" min="1" class="form-control" style="font-weight:800;color:#15803d;background:#f0fdf4;border-color:#86efac;padding:6px 10px" value="15.0">
+              </div>
             </div>
           </div>
 
@@ -1723,6 +1752,12 @@ async function loadPrice(){
       document.getElementById('currentAutoRefund').style.color = isUpiOn ? '#059669' : '#dc2626';
     }
     document.getElementById('newPriceInput').value = res.price_per_litre_rs;
+    if (res.price_tiers) {
+      if (document.getElementById('tier1LInput')) document.getElementById('tier1LInput').value = res.price_tiers["1"] || 1.0;
+      if (document.getElementById('tier5LInput')) document.getElementById('tier5LInput').value = res.price_tiers["5"] || 5.0;
+      if (document.getElementById('tier10LInput')) document.getElementById('tier10LInput').value = res.price_tiers["10"] || 10.0;
+      if (document.getElementById('tier20LInput')) document.getElementById('tier20LInput').value = res.price_tiers["20"] || 15.0;
+    }
     document.getElementById('defaultCardLitresInput').value = res.default_card_litres;
     if(res.razorpay_key_id) document.getElementById('rzpKeyInput').value = res.razorpay_key_id;
     if(res.razorpay_key_secret) document.getElementById('rzpSecretInput').value = res.razorpay_key_secret;
@@ -1775,6 +1810,12 @@ async function syncFromCloudDirect() {
 async function updatePrice(){
   const body = {
     price_per_litre_rs: document.getElementById('newPriceInput').value,
+    price_tiers: {
+      "1": parseFloat(document.getElementById('tier1LInput')?.value || 1.0),
+      "5": parseFloat(document.getElementById('tier5LInput')?.value || 5.0),
+      "10": parseFloat(document.getElementById('tier10LInput')?.value || 10.0),
+      "20": parseFloat(document.getElementById('tier20LInput')?.value || 15.0)
+    },
     default_card_litres: document.getElementById('defaultCardLitresInput').value,
     order_expiry_seconds: document.getElementById('orderExpirySecondsInput').value,
     flow_stall_seconds: document.getElementById('flowStallSecondsInput').value,

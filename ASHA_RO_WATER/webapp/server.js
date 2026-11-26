@@ -190,6 +190,36 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 let memoryDB = null;
 
+function getPriceTiers(db) {
+  return db?.settings?.price_tiers || { "1": 1.0, "5": 5.0, "10": 10.0, "20": 15.0 };
+}
+
+function getLitresForAmount(amt, db) {
+  const tiers = getPriceTiers(db);
+  for (const [lStr, price] of Object.entries(tiers)) {
+    if (Math.abs(amt - price) < 0.05) {
+      return parseFloat(lStr);
+    }
+  }
+  const rate_per_litre = (db.price?.paise_per_litre || 100) / 100.0;
+  return Math.round((amt / rate_per_litre) * 10) / 10;
+}
+
+function getCostForLitres(litres, db) {
+  const tiers = getPriceTiers(db);
+  const lKey = (Math.round(litres * 10) / 10).toString();
+  if (tiers[lKey] !== undefined) {
+    return parseFloat(tiers[lKey]);
+  }
+  const intKey = Math.round(litres).toString();
+  if (tiers[intKey] !== undefined) {
+    return parseFloat(tiers[intKey]);
+  }
+  const rate_per_litre = (db.price?.paise_per_litre || 100) / 100.0;
+  return litres * rate_per_litre;
+}
+
+
 function loadDiskDB() {
   if (!fs.existsSync(DB_FILE)) {
     const empty = {
@@ -504,6 +534,7 @@ app.get('/api/card/:uid', (req, res) => {
     success: true,
     data: { ...c, balance_paise: db.wallets[c.id] || 0 },
     paise_per_litre: db.price.paise_per_litre,
+    price_tiers: getPriceTiers(db),
     default_card_litres: (db.settings && db.settings.default_card_litres) ? db.settings.default_card_litres : 2
   });
 });
@@ -664,7 +695,8 @@ app.post('/api/dispense', (req, res) => {
     return res.status(403).json({ success: false, message: 'Card blocked hai!' });
   }
 
-  const cost_paise = Math.round(litres * (db.price.paise_per_litre || 100));
+  const cost_rs = getCostForLitres(litres, db);
+  const cost_paise = Math.round(cost_rs * 100);
   const current_bal = db.wallets[customer.id] || 0;
 
   if (current_bal < cost_paise) {
@@ -1629,6 +1661,7 @@ app.get('/api/machine/sync-cards', (req, res) => {
     dispense_mode: db.settings.dispense_mode || 'button', // 'button' or 'auto'
     wait_button_seconds: parseInt(db.settings.wait_button_seconds || 60, 10),
     multi_quantity_enabled: db.settings.multi_quantity_enabled !== false,
+    price_tiers: getPriceTiers(db),
     cards: cards
   });
 });
@@ -1718,13 +1751,14 @@ app.get('/api/settings', (req, res) => {
     wait_button_seconds: parseInt(db.settings.wait_button_seconds || 60, 10),
     multi_quantity_enabled: db.settings.multi_quantity_enabled !== false,
     auto_refund_upi: db.settings.auto_refund_upi !== false,
+    price_tiers: getPriceTiers(db),
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID,
     razorpay_key_secret: db.settings.razorpay_key_secret ? '••••••••••••••••' : '••••••••••••••••'
   });
 });
 
 app.post('/api/settings', (req, res) => {
-  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, pulses_per_litre, dispense_mode, wait_button_seconds, multi_quantity_enabled, auto_refund_upi } = req.body;
+  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, pulses_per_litre, dispense_mode, wait_button_seconds, multi_quantity_enabled, auto_refund_upi, price_tiers } = req.body;
   if (!verifyAdmin(req)) {
     return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
   }
@@ -1767,6 +1801,16 @@ app.post('/api/settings', (req, res) => {
   if (multi_quantity_enabled !== undefined) {
     db.settings.multi_quantity_enabled = (multi_quantity_enabled === true || multi_quantity_enabled === 'true');
   }
+  
+  if (price_tiers && typeof price_tiers === 'object') {
+    db.settings.price_tiers = {
+      "1": parseFloat(price_tiers["1"] !== undefined ? price_tiers["1"] : 1.0),
+      "5": parseFloat(price_tiers["5"] !== undefined ? price_tiers["5"] : 5.0),
+      "10": parseFloat(price_tiers["10"] !== undefined ? price_tiers["10"] : 10.0),
+      "20": parseFloat(price_tiers["20"] !== undefined ? price_tiers["20"] : 15.0)
+    };
+  }
+
   if (auto_refund_upi !== undefined) {
     db.settings.auto_refund_upi = (auto_refund_upi === true || auto_refund_upi === 'true');
   }

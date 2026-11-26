@@ -83,6 +83,20 @@ String dispenseMode        = "button"; // "button" (wait for Start press) or "au
 int    waitButtonSeconds   = 60;       // Seconds to wait for Start button before auto-cancelling
 bool   multiQuantityEnable = true;     // 1L, 5L, 10L, 20L selection buttons active
 
+// Quantity-Wise Tiered Prices (Admin sync - e.g. 20L @ Rs.15)
+float price1L              = 1.0;
+float price5L              = 5.0;
+float price10L             = 10.0;
+float price20L             = 15.0;
+
+float getQuantityCost(float litres) {
+  if (litres == 1.0)  return price1L;
+  if (litres == 5.0)  return price5L;
+  if (litres == 10.0) return price10L;
+  if (litres == 20.0) return price20L;
+  return litres * pricePerLitreRs;
+}
+
 // Objects
 MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
 Adafruit_SSD1306 display(128, 64, &Wire, -1);
@@ -313,7 +327,7 @@ float selectCardQuantity(String custName, float balanceRs) {
       delay(40);
       if (digitalRead(BTN_1L_PIN) == LOW) {
         beep(1, 100, 1800);
-        showScreen("CHUNA: 1 LITER", custName, "Rupaye: Rs." + String(1.0 * pricePerLitreRs, 1), "1L Selected");
+        showScreen("CHUNA: 1 LITER", custName, "Rupaye: Rs." + String(price1L, 1), "1L Selected");
         delay(900);
         return 1.0;
       }
@@ -324,7 +338,7 @@ float selectCardQuantity(String custName, float balanceRs) {
       delay(40);
       if (digitalRead(BTN_5L_PIN) == LOW) {
         beep(1, 100, 1800);
-        showScreen("CHUNA: 5 LITER", custName, "Rupaye: Rs." + String(5.0 * pricePerLitreRs, 1), "5L Selected");
+        showScreen("CHUNA: 5 LITER", custName, "Rupaye: Rs." + String(price5L, 1), "5L Selected");
         delay(900);
         return 5.0;
       }
@@ -335,7 +349,7 @@ float selectCardQuantity(String custName, float balanceRs) {
       delay(40);
       if (digitalRead(BTN_10L_PIN) == LOW) {
         beep(1, 100, 1800);
-        showScreen("CHUNA: 10 LITER", custName, "Rupaye: Rs." + String(10.0 * pricePerLitreRs, 1), "10L Selected");
+        showScreen("CHUNA: 10 LITER", custName, "Rupaye: Rs." + String(price10L, 1), "10L Selected");
         delay(900);
         return 10.0;
       }
@@ -346,7 +360,7 @@ float selectCardQuantity(String custName, float balanceRs) {
       delay(40);
       if (digitalRead(BTN_20L_PIN) == LOW) {
         beep(1, 100, 1800);
-        showScreen("CHUNA: 20 LITER", custName, "Rupaye: Rs." + String(20.0 * pricePerLitreRs, 1), "20L Selected");
+        showScreen("CHUNA: 20 LITER", custName, "Offer: Rs." + String(price20L, 1), "20L Jar Offer!");
         delay(900);
         return 20.0;
       }
@@ -688,6 +702,17 @@ void syncCardsAndOfflineQueue() {
         multiQuantityEnable = doc["multi_quantity_enabled"].as<bool>();
         prefs.putBool("multi_qty", multiQuantityEnable);
       }
+      if (doc["price_tiers"]) {
+        JsonObject pt = doc["price_tiers"].as<JsonObject>();
+        if (pt["1"]) price1L = pt["1"].as<float>();
+        if (pt["5"]) price5L = pt["5"].as<float>();
+        if (pt["10"]) price10L = pt["10"].as<float>();
+        if (pt["20"]) price20L = pt["20"].as<float>();
+        prefs.putFloat("p_1l", price1L);
+        prefs.putFloat("p_5l", price5L);
+        prefs.putFloat("p_10l", price10L);
+        prefs.putFloat("p_20l", price20L);
+      }
 
       prefs.putFloat("def_litres", defaultCardLitres);
       prefs.putFloat("price_per_l", pricePerLitreRs);
@@ -771,7 +796,7 @@ void handleCardScanned(String uid) {
         return; // Cancelled
       }
     }
-    float costRs = litresToGive * pricePerLitreRs;
+    float costRs = getQuantityCost(litresToGive);
 
     // 4. Check Balance
     if (localBal < costRs) {
@@ -863,7 +888,7 @@ void handleCardScanned(String uid) {
       }
 
       long ratePerLitrePaise = doc["paise_per_litre"] | 100;
-      float costRs = litresToGive * (ratePerLitrePaise / 100.0);
+      float costRs = getQuantityCost(litresToGive);
 
       if (balRs >= costRs) {
         // 🔘 JAR SAFETY CHECK: Wait for start button!
@@ -959,6 +984,10 @@ void setup() {
   dispenseMode        = prefs.getString("disp_mode", "button");
   waitButtonSeconds   = prefs.getInt("wait_btn_sec", 60);
   multiQuantityEnable = prefs.getBool("multi_qty", true);
+  price1L  = prefs.getFloat("p_1l", 1.0);
+  price5L  = prefs.getFloat("p_5l", 5.0);
+  price10L = prefs.getFloat("p_10l", 10.0);
+  price20L = prefs.getFloat("p_20l", 15.0);
 
   // 1. Setup Relay (Turn OFF immediately)
   pinMode(RELAY_PIN, OUTPUT);
