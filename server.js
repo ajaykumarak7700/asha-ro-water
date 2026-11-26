@@ -861,7 +861,8 @@ app.post('/api/razorpay/verify-payment', (req, res) => {
       customer_id: customer_id || null,
       payment_id: razorpay_payment_id,
       status: 'pending', // ESP32 will pick this up!
-      created_at: nowIST()
+      created_at: nowIST(),
+      created_at_ms: Date.now()
     };
 
     db.pending_orders.push(newOrder);
@@ -960,7 +961,8 @@ app.post('/api/razorpay/webhook', (req, res) => {
             customer_phone: buyerPhone,
             payment_id: payment_id,
             status: 'pending',
-            created_at: nowIST()
+            created_at: nowIST(),
+            created_at_ms: Date.now()
           });
 
           const phoneNote = buyerPhone ? ` (Mob: ${buyerPhone})` : '';
@@ -1032,7 +1034,8 @@ app.post('/api/cashfree/webhook', (req, res) => {
           customer_phone: buyerPhone,
           payment_id: payment_id,
           status: 'pending',
-          created_at: nowIST()
+          created_at: nowIST(),
+          created_at_ms: Date.now()
         });
 
         const phoneNote = buyerPhone ? ` (Mob: ${buyerPhone})` : '';
@@ -1087,8 +1090,9 @@ app.post('/api/qr-buy-water', (req, res) => {
     litres: litres,
     customer_name: buyerName,
     customer_id: customer_id || null,
-    status: 'pending', // pending -> in_progress -> completed
-    created_at: nowIST()
+    status: 'pending', // pending -> in_progress -> completed -> expired
+    created_at: nowIST(),
+    created_at_ms: Date.now()
   };
 
   db.pending_orders.push(newOrder);
@@ -1119,10 +1123,42 @@ app.post('/api/qr-buy-water', (req, res) => {
   });
 });
 
+// ── HELPER: Check and mark pending orders as expired if machine was offline > 90 seconds ──
+function checkExpiredOrders(db) {
+  if (!db || !db.pending_orders) return false;
+  const nowMs = Date.now();
+  const EXPIRE_TIMEOUT_MS = 90 * 1000; // 90 seconds timeout
+  let changed = false;
+
+  for (const o of db.pending_orders) {
+    if (o.status === 'pending') {
+      const orderMs = o.created_at_ms || (o.created_at ? new Date(o.created_at).getTime() : 0);
+      if (orderMs && (nowMs - orderMs > EXPIRE_TIMEOUT_MS)) {
+        o.status = 'expired';
+        o.expired_at = nowIST();
+        o.expire_reason = 'ESP32 Machine Offline / Timeout (Water not dispensed)';
+        changed = true;
+        console.log(`⚠️ Order ${o.id} EXPIRED! Machine was offline >90s. Prevented empty floor spill.`);
+
+        // Update corresponding transaction so it clearly marks expired
+        if (db.transactions) {
+          const txn = db.transactions.find(t => t.id === o.id || (o.payment_id && t.payment_ref === o.payment_id));
+          if (txn && !txn.note.includes('[EXPIRED]')) {
+            txn.note = `[EXPIRED - Water Not Dispensed] ` + txn.note;
+          }
+        }
+      }
+    }
+  }
+  return changed;
+}
+
 // ── ESP32 polls this endpoint to check if there is an active QR order ──
 app.get('/api/machine/pending', (req, res) => {
   const db = loadDB();
-  // Find first pending order
+  const changed = checkExpiredOrders(db);
+
+  // Find first active unexpired pending order
   const order = db.pending_orders.find(o => o.status === 'pending');
   if (order) {
     order.status = 'in_progress';
@@ -1137,7 +1173,124 @@ app.get('/api/machine/pending', (req, res) => {
       amount_rs: order.amount_rs
     });
   }
+
+  if (changed) {
+    saveDB(db);
+  }
   res.json({ has_order: false });
+});
+
+// ── GET list of expired / offline orders for Admin Dashboard ──
+app.get('/api/admin/expired-orders', (req, res) => {
+  const db = loadDB();
+  const changed = checkExpiredOrders(db);
+  if (changed) saveDB(db);
+
+  const expiredList = (db.pending_orders || [])
+    .filter(o => o.status === 'expired')
+    .sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
+
+  res.json({
+    success: true,
+    count: expiredList.length,
+    orders: expiredList
+  });
+});
+
+// ── Admin resolves an expired order (Cash refund or immediate manual dispense retry) ──
+app.post('/api/admin/resolve-order', (req, res) => {
+  const { order_id, action, note } = req.body;
+  if (!order_id || !action) {
+    return res.status(400).json({ success: false, message: 'order_id aur action jaroori hain' });
+  }
+
+  const db = loadDB();
+  checkExpiredOrders(db);
+
+  const order = (db.pending_orders || []).find(o => o.id === order_id);
+  if (!order) {
+    return res.status(404).json({ success: false, message: 'Order nahi mila' });
+  }
+
+  if (action === 'cash_refund') {
+    order.status = 'refunded_cash';
+    order.resolved_at = nowIST();
+    order.resolution = 'CASH_REFUND';
+    order.refund_note = note || `₹${order.amount_rs} Cash refunded to customer by Admin`;
+
+    // Record refund in transactions
+    const refTxnId = 'REF_' + uuidv4().substring(0, 8).toUpperCase();
+    db.transactions.unshift({
+      id: refTxnId,
+      customer_id: order.customer_id || 'QR_BUYER',
+      customer_name: order.customer_name || 'Customer',
+      card_uid: 'CASH_REFUND',
+      type: 'REFUND',
+      amount_paise: -Math.round((order.amount_rs || 20) * 100),
+      note: `💵 Cash Refund: ₹${order.amount_rs} wapas kiya (Order ${order.id})`,
+      payment_ref: order.id,
+      created_at: nowIST()
+    });
+
+    saveDB(db);
+    console.log(`💵 Order ${order.id} marked as CASH REFUNDED (₹${order.amount_rs})`);
+    return res.json({
+      success: true,
+      message: `✅ ₹${order.amount_rs} Cash Refund record ho gaya!`,
+      order
+    });
+  } else if (action === 'retry_dispense') {
+    // Reset order to pending with fresh timestamp so machine picks it up immediately
+    order.status = 'pending';
+    order.created_at = nowIST();
+    order.created_at_ms = Date.now();
+    order.retried_by_admin = true;
+    order.retried_at = nowIST();
+
+    saveDB(db);
+    console.log(`🚰 Order ${order.id} RETRIED by Admin for dispense (${order.litres}L)`);
+    return res.json({
+      success: true,
+      message: `🚰 Machine ko ${order.litres}L paani nikalne ka signal bhej diya gaya hai!`,
+      order
+    });
+  } else if (action === 'dismiss') {
+    order.status = 'dismissed';
+    order.resolved_at = nowIST();
+    saveDB(db);
+    return res.json({ success: true, message: 'Order dismiss ho gaya.', order });
+  }
+
+  res.status(400).json({ success: false, message: 'Unknown action' });
+});
+
+// ── Public Order Status Check (For Customer Mobile UI) ──
+app.get('/api/order-status/:id', (req, res) => {
+  const db = loadDB();
+  checkExpiredOrders(db);
+  const order = (db.pending_orders || []).find(o => o.id === req.params.id);
+  if (!order) {
+    return res.status(404).json({ success: false, message: 'Order nahi mila' });
+  }
+  res.json({
+    success: true,
+    order: {
+      id: order.id,
+      status: order.status,
+      litres: order.litres,
+      amount_rs: order.amount_rs,
+      customer_name: order.customer_name,
+      created_at: order.created_at,
+      expired_at: order.expired_at,
+      status_text: order.status === 'expired'
+        ? '⚠️ मशीन ऑफ़लाइन थी, इसलिए पानी नहीं निकला। कृपया ऑपरेटर (अजय जी) को Payment ID दिखाकर ₹20 कैश वापस लें या पानी निकलवाएं।'
+        : (order.status === 'completed'
+            ? '✅ पानी निकल चुका है!'
+            : (order.status === 'refunded_cash'
+                ? '💵 इस आर्डर का ₹20 कैश रिफंड दिया जा चुका है।'
+                : '⏳ मशीन प्रोसेस कर रही है...'))
+    }
+  });
 });
 
 // ── ESP32 confirms order completed ──

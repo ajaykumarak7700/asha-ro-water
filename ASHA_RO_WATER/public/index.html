@@ -172,6 +172,39 @@ input:focus,select:focus{border-color:var(--blue)}
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
       <div class="stats-grid" id="statsGrid"></div>
+
+      <!-- EXPIRED / OFFLINE ORDERS (WATER NOT DISPENSED) ALERT CARD -->
+      <div id="expiredOrdersCard" class="card" style="display:none;border:2px solid #ef4444;background:#fff5f5;margin-bottom:20px;box-shadow:0 10px 25px rgba(239,68,68,0.12)">
+        <div class="card-hdr" style="background:#fee2e2;border-bottom:1.5px solid #fca5a5;display:flex;align-items:center;justify-content:space-between;padding:14px 18px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:24px;animation:pulse 1.2s infinite">⚠️</span>
+            <div>
+              <h3 style="color:#991b1b;font-size:15px;font-weight:800;margin:0">मशीन ऑफ़लाइन आर्डर (Water Not Dispensed)</h3>
+              <p style="font-size:12px;color:#7f1d1d;margin:2px 0 0">ग्राहक ने पेमेंट किया लेकिन मशीन ऑफ़लाइन होने से पानी नहीं निकला। पेमेंट आईडी मिलाकर कैश वापस दें या अभी पानी निकलवाएं।</p>
+            </div>
+          </div>
+          <span id="expiredCountBadge" style="background:#dc2626;color:#fff;font-size:12px;font-weight:800;padding:5px 12px;border-radius:20px">0 Orders</span>
+        </div>
+        <div class="card-body" style="padding:0">
+          <div class="tbl-wrap">
+            <table style="background:#fff">
+              <thead>
+                <tr style="background:#fef2f2;color:#991b1b">
+                  <th>Time</th>
+                  <th>Order ID / Pay Ref</th>
+                  <th>Customer</th>
+                  <th>Amount</th>
+                  <th>Litres</th>
+                  <th>Status</th>
+                  <th>Action (कैश वापस / तुरंत पानी)</th>
+                </tr>
+              </thead>
+              <tbody id="expiredOrdersBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-hdr"><h3>📋 Recent Transactions</h3></div>
         <div class="card-body" style="padding:0">
@@ -695,6 +728,7 @@ async function loadDashboard(){
     <div class="stat"><div class="icon">🚫</div><div class="val">${d.blocked_cards}</div><div class="lbl">Blocked Cards</div></div>
   `;
   renderTxnRows(txns.data||[], 'dashTxnBody', true);
+  checkExpiredOrdersAdmin();
 }
 
 // ── LOAD CUSTOMERS ──
@@ -795,19 +829,29 @@ async function loadTransactions(){
 function renderTxnRows(list, targetId, short){
   const el = document.getElementById(targetId);
   if(!el)return;
-  el.innerHTML = list.slice(0,short?8:100).map((t,i)=>`
+  el.innerHTML = list.slice(0,short?8:100).map((t,i)=>{
+    const isExpired = t.status === 'EXPIRED' || (t.note && t.note.includes('EXPIRED'));
+    const isRefund = t.type === 'REFUND';
+    const typeBadge = isExpired
+      ? `<span class="badge" style="background:#fee2e2;color:#991b1b">❌ EXPIRED</span>`
+      : (isRefund
+          ? `<span class="badge" style="background:#fef3c7;color:#b45309">💵 REFUND</span>`
+          : `<span class="badge badge-${(t.type||'').toLowerCase()}">${t.type}</span>`);
+
+    return `
     <tr>
       <td>${i+1}</td>
       <td style="font-size:12px;color:var(--muted)">${t.created_at.substring(0,16)}</td>
       <td>${t.customer_name||'-'}</td>
-      ${!short?`<td><span class="badge badge-${(t.type||'').toLowerCase()}">${t.type}</span></td>`:''}
-      ${short?`<td><code>${t.card_uid||'-'}</code></td><td><span class="badge badge-${(t.type||'').toLowerCase()}">${t.type}</span></td>`:''}
-      <td style="font-weight:700;color:${t.type==='RECHARGE'?'var(--green)':'var(--red)'}">
-        ${t.type==='RECHARGE'?'+':'-'}₹${((t.amount_paise||0)/100).toFixed(2)}
+      ${!short?`<td>${typeBadge}</td>`:''}
+      ${short?`<td><code>${t.card_uid||'-'}</code></td><td>${typeBadge}</td>`:''}
+      <td style="font-weight:700;color:${t.type==='RECHARGE'?'var(--green)':(isRefund?'#d97706':'var(--red)')}">
+        ${t.type==='RECHARGE'?'+':'-'}₹${(Math.abs(t.amount_paise||0)/100).toFixed(2)}
       </td>
       ${!short?`<td style="font-size:11px;color:var(--muted)">${t.payment_ref||t.note||'-'}</td>`:''}
       ${short?`<td>-</td>`:''}
-    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">Koi transaction nahi</td></tr>';
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">Koi transaction nahi</td></tr>';
 }
 function filterTxns(q){
   const f = allTxns.filter(t=>(t.customer_name||'').toLowerCase().includes(q.toLowerCase())||(t.type||'').toLowerCase().includes(q.toLowerCase())||(t.card_uid||'').toLowerCase().includes(q.toLowerCase()));
@@ -1167,7 +1211,119 @@ async function dismissDetectedCard() {
   currentDetectedUid = null;
 }
 
-setInterval(checkUnregisteredCards, 3000);
+// ── EXPIRED / OFFLINE ORDERS ADMIN REAL-TIME HANDLING ──
+let lastSeenExpiredCount = 0;
+
+async function checkExpiredOrdersAdmin() {
+  if (!getAdminToken()) return;
+  try {
+    const res = await fetch('/api/admin/expired-orders').then(r => r.json());
+    if (res.success && res.orders && res.orders.length > 0) {
+      document.getElementById('expiredOrdersCard').style.display = 'block';
+      document.getElementById('expiredCountBadge').textContent = `${res.orders.length} Order${res.orders.length > 1 ? 's' : ''}`;
+
+      const tbody = document.getElementById('expiredOrdersBody');
+      tbody.innerHTML = res.orders.map(o => `
+        <tr style="background:#fffaf0">
+          <td style="font-size:12px;color:#64748b">${o.created_at ? o.created_at.substring(0, 16) : '-'}</td>
+          <td>
+            <b style="font-family:monospace;color:#1e3a5f">${o.id}</b>
+            ${o.payment_id ? `<br><small style="color:#0284c7;font-family:monospace">${o.payment_id}</small>` : ''}
+          </td>
+          <td>
+            <b style="color:#0f172a">${o.customer_name || 'Customer'}</b>
+            ${o.customer_phone ? `<br><small style="color:#64748b">📞 ${o.customer_phone}</small>` : ''}
+          </td>
+          <td><b style="color:#dc2626;font-size:15px">₹${o.amount_rs}</b></td>
+          <td><b style="color:#0369a1">${o.litres}L</b></td>
+          <td>
+            <span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700">❌ पानी नहीं निकला</span>
+            <br><small style="color:#dc2626;font-size:10.5px">Machine Offline Timeout</small>
+          </td>
+          <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-success btn-sm" style="font-weight:700;box-shadow:0 2px 4px rgba(5,122,85,0.2)" onclick="handleResolveOrder('${o.id}', 'cash_refund', ${o.amount_rs})">💵 Cash Refund Diya (₹${o.amount_rs})</button>
+            <button class="btn btn-primary btn-sm" style="font-weight:700" onclick="handleResolveOrder('${o.id}', 'retry_dispense', ${o.amount_rs}, ${o.litres})">🚰 Abhi Paani Nikalo (${o.litres}L)</button>
+            <button class="btn btn-light btn-sm" style="color:#64748b" onclick="handleResolveOrder('${o.id}', 'dismiss')" title="Dismiss / Clear">✕</button>
+          </td>
+        </tr>
+      `).join('');
+
+      if (res.orders.length > lastSeenExpiredCount) {
+        lastSeenExpiredCount = res.orders.length;
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.setValueAtTime(440, ctx.currentTime);
+          gain.gain.setValueAtTime(0.1, ctx.currentTime);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.25);
+        } catch(e) {}
+      }
+    } else {
+      document.getElementById('expiredOrdersCard').style.display = 'none';
+      lastSeenExpiredCount = 0;
+    }
+  } catch (e) {
+    console.error('Error fetching expired orders:', e);
+  }
+}
+
+async function handleResolveOrder(orderId, action, amount, litres) {
+  if (action === 'cash_refund') {
+    if (!confirm(`क्या आपने ग्राहक को ₹${amount} कैश वापस दे दिया है?\n\n'OK' करने पर यह आर्डर 'CASH REFUNDED' मार्क हो जाएगा और आपके हिसाब-किताब में दर्ज हो जाएगा।`)) return;
+    try {
+      const res = await fetch('/api/admin/resolve-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, action: 'cash_refund' })
+      }).then(r => r.json());
+      if (res.success) {
+        alert(res.message);
+        checkExpiredOrdersAdmin();
+        loadDashboard();
+      } else {
+        alert('Error: ' + res.message);
+      }
+    } catch(err) {
+      alert('Network Error: ' + err.message);
+    }
+  } else if (action === 'retry_dispense') {
+    if (!confirm(`क्या ग्राहक की ${litres}L की केन/जार मशीन के नल के नीचे रखी है?\n\n'OK' करते ही मशीन तुरंत पानी निकालना शुरू कर देगी!`)) return;
+    try {
+      const res = await fetch('/api/admin/resolve-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, action: 'retry_dispense' })
+      }).then(r => r.json());
+      if (res.success) {
+        alert(res.message);
+        checkExpiredOrdersAdmin();
+      } else {
+        alert('Error: ' + res.message);
+      }
+    } catch(err) {
+      alert('Network Error: ' + err.message);
+    }
+  } else if (action === 'dismiss') {
+    if (!confirm('क्या आप इस आर्डर को हटाना चाहते हैं?')) return;
+    try {
+      await fetch('/api/admin/resolve-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId, action: 'dismiss' })
+      });
+      checkExpiredOrdersAdmin();
+    } catch(e) {}
+  }
+}
+
+setInterval(() => {
+  checkUnregisteredCards();
+  checkExpiredOrdersAdmin();
+}, 3000);
 
 function openAddCustomer(){
   document.getElementById('addModal').classList.add('show');

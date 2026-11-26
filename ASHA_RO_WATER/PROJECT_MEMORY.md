@@ -93,6 +93,14 @@
    - Back: Direct UPI QR with PhonePe, GPay, Paytm badges, and "SCAN & RECHARGE" banner.
    - Static balance removed so cards remain permanently reusable without re-stickering.
    - Printable directly from Admin Panel or `C:\Users\Dell\Desktop\PRINT_CARD_STICKER_AJAY.html`.
+4. **🛡️ Offline Dispense Protection & Expired Order Refund Control:**
+   - When a customer buys water via QR but the ESP32 is offline/disconnected, orders expire automatically after 90 seconds.
+   - Prevents runaway dispenses (spilling 20L on an empty floor when reconnecting minutes/hours later).
+   - Expired orders trigger a red alert card in the Admin Panel (`#expiredOrdersCard`) with sound chime.
+   - Admin can view customer name, phone, amount (₹20), and payment ID.
+   - Two 1-click action buttons:
+     - `[ 💵 Cash Refund Diya ]`: Updates order to `refunded_cash` and records negative amount in ledger.
+     - `[ 🚰 Abhi Paani Nikalo ]`: Resets order to pending so ESP32 immediately dispenses water when the customer is ready with their jar.
 
 ---
 
