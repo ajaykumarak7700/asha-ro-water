@@ -83,19 +83,85 @@ try {
   console.warn('⚠️ pg module not found, fallback to disk storage');
 }
 let pgPool = null;
+let activePgHost = 'none';
+let activePgError = null;
 
-if (Pool && process.env.DATABASE_URL) {
+async function tryConnectPg(connStr, description) {
+  if (!Pool || !connStr) return null;
   try {
-    pgPool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
-      connectionTimeoutMillis: 5000,
+    const isLocal = connStr.includes('localhost') || connStr.includes('127.0.0.1');
+    const p = new Pool({
+      connectionString: connStr,
+      ssl: isLocal ? false : { rejectUnauthorized: false },
+      connectionTimeoutMillis: 4000,
       idleTimeoutMillis: 10000
     });
-    console.log('🐘 PostgreSQL Cloud Database detected from DATABASE_URL!');
-  } catch (pgErr) {
-    console.error('❌ Failed to initialize pgPool:', pgErr.message);
+    // Test with a quick 3s race query
+    const q = p.query('SELECT 1');
+    const to = new Promise((_, rej) => setTimeout(() => rej(new Error('Connect timeout (3.5s)')), 3500));
+    await Promise.race([q, to]);
+    console.log(`🐘 PostgreSQL connected successfully (${description})!`);
+    return p;
+  } catch (err) {
+    console.warn(`⚠️ PostgreSQL connection attempt failed (${description}):`, err.message);
+    activePgError = `${description}: ${err.message}`;
+    return null;
   }
+}
+
+async function establishDatabaseConnection() {
+  if (!Pool) return null;
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl) return null;
+
+  // 1. Direct connection test
+  let pool = await tryConnectPg(rawUrl, 'direct DATABASE_URL');
+  if (pool) {
+    try {
+      const u = new URL(rawUrl);
+      activePgHost = u.hostname;
+    } catch(e) { activePgHost = 'direct'; }
+    activePgError = null;
+    return pool;
+  }
+
+  // 2. Probing IPv4 Supabase Poolers (if direct is Supabase IPv6 host)
+  try {
+    const u = new URL(rawUrl);
+    if (u.hostname.startsWith('db.') && u.hostname.endsWith('.supabase.co')) {
+      const projectRef = u.hostname.split('.')[1];
+      const baseUser = u.username.includes('.') ? u.username : `${u.username}.${projectRef}`;
+      const dbName = u.pathname || '/postgres';
+      const password = u.password;
+      console.log(`ℹ️ Supabase IPv6 host detected (${u.hostname}). Probing IPv4 connection poolers for project '${projectRef}'...`);
+
+      // Try AWS pooler regions (Mumbai ap-south-1 first, then Singapore, Sydney, US)
+      const regions = ['ap-south-1', 'ap-southeast-1', 'ap-southeast-2', 'us-east-1'];
+      for (const reg of regions) {
+        // Try Transaction pooler (port 6543)
+        const poolerUrl6543 = `postgresql://${encodeURIComponent(baseUser)}:${encodeURIComponent(password)}@aws-0-${reg}.pooler.supabase.com:6543${dbName}`;
+        pool = await tryConnectPg(poolerUrl6543, `Supabase IPv4 Pooler ${reg}:6543`);
+        if (pool) {
+          activePgHost = `aws-0-${reg}.pooler.supabase.com:6543`;
+          activePgError = null;
+          return pool;
+        }
+
+        // Try Session pooler (port 5432)
+        const poolerUrl5432 = `postgresql://${encodeURIComponent(baseUser)}:${encodeURIComponent(password)}@aws-0-${reg}.pooler.supabase.com:5432${dbName}`;
+        pool = await tryConnectPg(poolerUrl5432, `Supabase IPv4 Pooler ${reg}:5432`);
+        if (pool) {
+          activePgHost = `aws-0-${reg}.pooler.supabase.com:5432`;
+          activePgError = null;
+          return pool;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing DATABASE_URL for pooler candidate:', e.message);
+  }
+
+  return null;
 }
 
 // ─── ADMIN AUTHENTICATION CONFIGURATION ────────────────────
@@ -179,6 +245,9 @@ function saveDB(db) {
 }
 
 async function initDatabase() {
+  pgPool = await establishDatabaseConnection();
+  const diskDB = loadDiskDB();
+
   if (pgPool) {
     try {
       await pgPool.query(`
@@ -189,29 +258,52 @@ async function initDatabase() {
         )
       `);
       const res = await pgPool.query("SELECT data FROM app_state WHERE key = 'asha_ro_water_db'");
-      if (res.rows.length > 0 && res.rows[0].data && res.rows[0].data.customers && res.rows[0].data.customers.length > 0) {
-        memoryDB = res.rows[0].data;
-        if (!memoryDB.settings) memoryDB.settings = { default_card_litres: 20 };
-        if (!memoryDB.pending_orders) memoryDB.pending_orders = [];
-        if (!memoryDB.cashback_wallets) memoryDB.cashback_wallets = {};
-        console.log(`✅ Loaded persistent database from PostgreSQL Cloud! (${memoryDB.customers.length} customers)`);
+      if (res.rows.length > 0 && res.rows[0].data && res.rows[0].data.customers) {
+        const cloudDB = res.rows[0].data;
+        if (!cloudDB.settings) cloudDB.settings = { default_card_litres: 20 };
+        if (!cloudDB.pending_orders) cloudDB.pending_orders = [];
+        if (!cloudDB.cashback_wallets) cloudDB.cashback_wallets = {};
+
+        // Merge disk customers into cloud if disk has any newly registered customer
+        const cloudCustIds = new Set(cloudDB.customers.map(c => c.id));
+        const cloudUids = new Set(cloudDB.customers.map(c => (c.card_uid || '').replace(/\s+/g, '').toUpperCase()));
+        let merged = false;
+
+        for (const dc of (diskDB.customers || [])) {
+          const dUid = (dc.card_uid || '').replace(/\s+/g, '').toUpperCase();
+          if (!cloudCustIds.has(dc.id) && dUid && !cloudUids.has(dUid)) {
+            cloudDB.customers.push(dc);
+            if (diskDB.wallets && diskDB.wallets[dc.id]) {
+              cloudDB.wallets[dc.id] = diskDB.wallets[dc.id];
+            }
+            merged = true;
+            console.log(`🔄 Merged local card into cloud database: ${dc.name} (${dc.card_uid})`);
+          }
+        }
+
+        memoryDB = cloudDB;
+        if (merged) {
+          saveDB(memoryDB);
+        }
+        console.log(`✅ Loaded persistent database from PostgreSQL Cloud (${activePgHost})! (${memoryDB.customers.length} customers)`);
         try { fs.writeFileSync(DB_FILE, JSON.stringify(memoryDB, null, 2)); } catch(e){}
       } else {
-        const initial = loadDiskDB();
         await pgPool.query(
           `INSERT INTO app_state (key, data, updated_at) VALUES ($1, $2::jsonb, NOW())
            ON CONFLICT (key) DO UPDATE SET data = $2::jsonb, updated_at = NOW()`,
-          ['asha_ro_water_db', JSON.stringify(initial)]
+          ['asha_ro_water_db', JSON.stringify(diskDB)]
         );
-        memoryDB = initial;
-        console.log(`🚀 Initialized PostgreSQL Cloud Database with ${initial.customers ? initial.customers.length : 0} initial customers!`);
+        memoryDB = diskDB;
+        console.log(`🚀 Initialized PostgreSQL Cloud Database with ${diskDB.customers ? diskDB.customers.length : 0} initial customers!`);
       }
     } catch(err) {
-      console.error('❌ PostgreSQL connection error:', err.message);
-      memoryDB = loadDiskDB();
+      console.error('❌ PostgreSQL query error in initDatabase:', err.message);
+      activePgError = err.message;
+      memoryDB = diskDB;
     }
   } else {
-    memoryDB = loadDiskDB();
+    console.log('📁 Using local disk storage (data/db.json).');
+    memoryDB = diskDB;
   }
   initRazorpayFromDB();
 }
@@ -284,7 +376,7 @@ app.get('/api/ping', (req, res) => {
 // ── Health & Database Cloud Status Endpoint ──
 app.get('/api/cloud-status', async (req, res) => {
   let pgStatus = 'disconnected';
-  let pgError = null;
+  let pgError = activePgError;
   let pgCount = 0;
   let pgCustomers = [];
   if (pgPool) {
@@ -305,17 +397,51 @@ app.get('/api/cloud-status', async (req, res) => {
       pgError = e.message;
     }
   } else {
-    pgStatus = 'no_pool (DATABASE_URL missing or Pool failed)';
+    pgStatus = activePgError ? `failed (${activePgError})` : 'no_pool (DATABASE_URL missing or Pool failed)';
   }
   res.json({
     success: true,
     has_db_url: !!process.env.DATABASE_URL,
     db_url_starts_with: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 18) + '...' : 'none',
+    active_host: activePgHost,
     pg_status: pgStatus,
     pg_error: pgError,
     supabase_customers_count: pgCount,
     supabase_customers: pgCustomers,
     memory_customers_count: memoryDB ? (memoryDB.customers ? memoryDB.customers.length : 0) : 0
+  });
+});
+
+// ── Admin Export Complete Database (JSON Backup) ──
+app.get('/api/admin/export-db', (req, res) => {
+  const db = loadDB();
+  const dateStr = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-disposition', `attachment; filename=asha_ro_water_backup_${dateStr}.json`);
+  res.setHeader('Content-type', 'application/json');
+  res.send(JSON.stringify(db, null, 2));
+});
+
+// ── Admin Import / Restore Database (JSON Backup) ──
+app.post('/api/admin/import-db', (req, res) => {
+  if (!verifyAdmin(req)) {
+    return res.status(403).json({ success: false, message: '❌ Unauthorized! एडमिन पासवर्ड से लॉगिन करें।' });
+  }
+  const importData = req.body?.data || req.body;
+  if (!importData || !Array.isArray(importData.customers)) {
+    return res.status(400).json({ success: false, message: '❌ अमान्य बैकअप फ़ाइल! Customers सूची नहीं मिली।' });
+  }
+  if (!importData.wallets) importData.wallets = {};
+  if (!importData.transactions) importData.transactions = [];
+  if (!importData.price) importData.price = { paise_per_litre: 100 };
+  if (!importData.settings) importData.settings = { default_card_litres: 20 };
+  if (!importData.pending_orders) importData.pending_orders = [];
+  if (!importData.cashback_wallets) importData.cashback_wallets = {};
+
+  saveDB(importData);
+  res.json({
+    success: true,
+    message: `✅ डेटाबेस सफलतापूर्वक रिस्टोर हो गया! (${importData.customers.length} ग्राहक)`,
+    customers_count: importData.customers.length
   });
 });
 
@@ -1123,12 +1249,33 @@ app.post('/api/qr-buy-water', (req, res) => {
   });
 });
 
+// ── RAZORPAY AUTO-REFUND HELPER ──
+async function triggerRazorpayRefund(paymentId, amountPaise, reason) {
+  if (!razorpay || !paymentId) return null;
+  if (!paymentId.startsWith('pay_')) {
+    console.log(`ℹ️ Payment ID ${paymentId} is not a live Razorpay pay_id, skipping gateway API refund.`);
+    return null;
+  }
+  try {
+    const refund = await razorpay.payments.refund(paymentId, {
+      amount: amountPaise,
+      notes: { reason: reason || 'Water ATM Auto-Refund' }
+    });
+    console.log(`💳 Razorpay Auto-Refund SUCCESS! Refund ID: ${refund.id} for ₹${amountPaise/100}`);
+    return refund;
+  } catch (err) {
+    console.error(`❌ Razorpay Auto-Refund Error for ${paymentId}:`, err.message);
+    return null;
+  }
+}
+
 // ── HELPER: Check and mark pending orders as expired if machine was offline > order_expiry_seconds ──
 function checkExpiredOrders(db) {
   if (!db || !db.pending_orders) return false;
   const nowMs = Date.now();
   const expSec = parseInt((db.settings && db.settings.order_expiry_seconds) ? db.settings.order_expiry_seconds : 90, 10);
   const EXPIRE_TIMEOUT_MS = Math.max(15, isNaN(expSec) ? 90 : expSec) * 1000;
+  const autoRefundEnabled = db.settings?.auto_refund_upi !== false;
   let changed = false;
 
   for (const o of db.pending_orders) {
@@ -1139,13 +1286,30 @@ function checkExpiredOrders(db) {
         o.expired_at = nowIST();
         o.expire_reason = `ESP32 Machine Offline / Timeout (> ${Math.round(EXPIRE_TIMEOUT_MS/1000)}s)`;
         changed = true;
-        console.log(`⚠️ Order ${o.id} EXPIRED! Machine was offline >${Math.round(EXPIRE_TIMEOUT_MS/1000)}s. Prevented empty floor spill.`);
+        console.log(`⚠️ Order ${o.id} EXPIRED! Machine was offline >${Math.round(EXPIRE_TIMEOUT_MS/1000)}s.`);
+
+        // 💳 AUTO-REFUND VIA RAZORPAY IF ONLINE QR PAYMENT
+        if (autoRefundEnabled && o.payment_id && o.payment_id.startsWith('pay_')) {
+          const amtPaise = Math.round((o.amount_rs || 20) * 100);
+          triggerRazorpayRefund(o.payment_id, amtPaise, 'Water Dispenser Offline Timeout')
+            .then(ref => {
+              if (ref) {
+                o.status = 'auto_refunded';
+                o.refund_id = ref.id;
+                o.refunded_at = nowIST();
+                o.refund_method = 'RAZORPAY_UPI';
+                saveDB(db);
+                console.log(`✅ Order ${o.id} AUTO-REFUNDED via Razorpay (Refund ID: ${ref.id})`);
+              }
+            }).catch(e => console.error('Refund background error:', e.message));
+        }
 
         // Update corresponding transaction so it clearly marks expired
         if (db.transactions) {
           const txn = db.transactions.find(t => t.id === o.id || (o.payment_id && t.payment_ref === o.payment_id));
-          if (txn && !txn.note.includes('[EXPIRED]')) {
+          if (txn && !txn.note.includes('[EXPIRED]') && !txn.note.includes('[AUTO-REFUNDED]')) {
             txn.note = `[EXPIRED - Water Not Dispensed] ` + txn.note;
+            txn.status = 'EXPIRED';
           }
         }
       }
@@ -1309,9 +1473,26 @@ app.post('/api/machine/complete', (req, res) => {
       order.failure_reason = reason || 'Tank khali / Motor error (Dry-run stopped)';
       console.log(`🚨 Machine reported NO WATER for Order ${order_id}! Motor stopped to protect pump. (Actual: ${order.actual_dispensed_litres}L)`);
 
+      // 💳 AUTO-REFUND VIA RAZORPAY IF ONLINE QR
+      const autoRefundEnabled = db.settings?.auto_refund_upi !== false;
+      if (autoRefundEnabled && order.payment_id && order.payment_id.startsWith('pay_')) {
+        const amtPaise = Math.round((order.amount_rs || 20) * 100);
+        triggerRazorpayRefund(order.payment_id, amtPaise, 'Tank Empty / Dry-run No Flow')
+          .then(ref => {
+            if (ref) {
+              order.status = 'auto_refunded';
+              order.refund_id = ref.id;
+              order.refunded_at = nowIST();
+              order.refund_method = 'RAZORPAY_UPI';
+              saveDB(db);
+              console.log(`✅ Order ${order_id} AUTO-REFUNDED via Razorpay (Refund ID: ${ref.id})`);
+            }
+          }).catch(e => console.error('Dry-run refund error:', e.message));
+      }
+
       // Update transaction note
       const txn = db.transactions.find(t => t.id === order_id || (order.payment_id && t.payment_ref === order.payment_id));
-      if (txn && !txn.note.includes('[TANK KHALI/NO WATER]')) {
+      if (txn && !txn.note.includes('[TANK KHALI/NO WATER]') && !txn.note.includes('[AUTO-REFUNDED]')) {
         txn.note = `[TANK KHALI / MOTOR ERROR - Water Not Dispensed] ` + txn.note;
         txn.status = 'FAILED_NO_WATER';
       }
@@ -1389,6 +1570,8 @@ app.get('/api/machine/sync-cards', (req, res) => {
     success: true,
     price_per_litre_rs: parseFloat((db.price.paise_per_litre / 100.0).toFixed(2)),
     default_card_litres: parseFloat(db.settings.default_card_litres || 2),
+    flow_stall_seconds: parseInt(db.settings.flow_stall_seconds || 6, 10),
+    order_expiry_seconds: parseInt(db.settings.order_expiry_seconds || 90, 10),
     cards: cards
   });
 });
@@ -1464,7 +1647,7 @@ app.post('/api/customers/:id/toggle-offline', (req, res) => {
   });
 });
 
-// ── GET/POST Machine Settings (Card Default Litres, Price, Razorpay Keys, Offline Safety Timer) ──
+// ── GET/POST Machine Settings (Card Default Litres, Price, Razorpay Keys, Offline Safety Timer, Flow Stall Timer) ──
 app.get('/api/settings', (req, res) => {
   const db = loadDB();
   res.json({
@@ -1472,13 +1655,15 @@ app.get('/api/settings', (req, res) => {
     price_per_litre_rs: (db.price.paise_per_litre / 100).toFixed(2),
     default_card_litres: db.settings.default_card_litres || 20,
     order_expiry_seconds: db.settings.order_expiry_seconds || 90,
+    flow_stall_seconds: db.settings.flow_stall_seconds || 6,
+    auto_refund_upi: db.settings.auto_refund_upi !== false,
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID,
     razorpay_key_secret: db.settings.razorpay_key_secret ? '••••••••••••••••' : '••••••••••••••••'
   });
 });
 
 app.post('/api/settings', (req, res) => {
-  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds } = req.body;
+  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, auto_refund_upi } = req.body;
   if (!verifyAdmin(req)) {
     return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
   }
@@ -1497,6 +1682,15 @@ app.post('/api/settings', (req, res) => {
       db.settings.order_expiry_seconds = expSec;
     }
   }
+  if (flow_stall_seconds !== undefined) {
+    const fSec = parseInt(flow_stall_seconds, 10);
+    if (!isNaN(fSec) && fSec >= 2 && fSec <= 60) {
+      db.settings.flow_stall_seconds = fSec;
+    }
+  }
+  if (auto_refund_upi !== undefined) {
+    db.settings.auto_refund_upi = (auto_refund_upi === true || auto_refund_upi === 'true');
+  }
   if (razorpay_key_id && razorpay_key_id.trim()) {
     db.settings.razorpay_key_id = razorpay_key_id.trim();
   }
@@ -1506,12 +1700,14 @@ app.post('/api/settings', (req, res) => {
   saveDB(db);
   initRazorpayFromDB();
 
-  console.log(`⚙️ Settings updated: Rate=₹${(db.price.paise_per_litre/100).toFixed(2)}/L, Card Default=${db.settings.default_card_litres}L, Offline Timer=${db.settings.order_expiry_seconds || 90}s, Key: ${db.settings.razorpay_key_id || RAZORPAY_KEY_ID}`);
+  console.log(`⚙️ Settings updated: Rate=₹${(db.price.paise_per_litre/100).toFixed(2)}/L, Card Default=${db.settings.default_card_litres}L, Offline Timer=${db.settings.order_expiry_seconds || 90}s, Flow Stall=${db.settings.flow_stall_seconds || 6}s, Auto-Refund=${db.settings.auto_refund_upi !== false}`);
   res.json({
     success: true,
     message: '✅ Settings update ho gayi!',
     default_card_litres: db.settings.default_card_litres,
     order_expiry_seconds: db.settings.order_expiry_seconds || 90,
+    flow_stall_seconds: db.settings.flow_stall_seconds || 6,
+    auto_refund_upi: db.settings.auto_refund_upi !== false,
     price_per_litre_rs: (db.price.paise_per_litre / 100).toFixed(2),
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID
   });

@@ -17,6 +17,28 @@
   },
   "transactions": [
     {
+      "id": "REF_C9E28F38",
+      "customer_id": "QR_BUYER",
+      "customer_name": "Test Offline User",
+      "card_uid": "CASH_REFUND",
+      "type": "REFUND",
+      "amount_paise": -2000,
+      "note": "💵 Cash Refund: ₹20 wapas kiya (Order ORD_B5183262)",
+      "payment_ref": "ORD_B5183262",
+      "created_at": "26/11/2026, 6:42:59 pm"
+    },
+    {
+      "id": "ORD_B5183262",
+      "customer_id": "QR_BUYER",
+      "customer_name": "Test Offline User",
+      "card_uid": "UPI_QR",
+      "type": "DISPENSE",
+      "amount_paise": 2000,
+      "note": "QR Pay: ₹20 -> 20L Water",
+      "payment_ref": "ORD_B5183262",
+      "created_at": "26/11/2026, 6:42:41 pm"
+    },
+    {
       "id": "DSP_964DBFC4",
       "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
       "customer_name": "AJAY KUSHWAHA",
@@ -252,9 +274,24 @@
     "paise_per_litre": 100
   },
   "settings": {
-    "default_card_litres": 1
+    "default_card_litres": 1,
+    "order_expiry_seconds": 90
   },
-  "pending_orders": [],
+  "pending_orders": [
+    {
+      "id": "ORD_B5183262",
+      "amount_rs": 20,
+      "litres": 20,
+      "customer_name": "Test Offline User",
+      "customer_id": null,
+      "status": "dismissed",
+      "created_at": "26/11/2026, 6:42:41 pm",
+      "created_at_ms": 1795698761792,
+      "resolved_at": "26/11/2026, 6:43:16 pm",
+      "resolution": "CASH_REFUND",
+      "refund_note": "₹20 Cash refunded to customer by Admin"
+    }
+  ],
   "cashback_wallets": {
     "6d0324fb-094c-463a-80ba-87753ee08adc": 0
   }
