@@ -1750,15 +1750,18 @@ async function checkCloudStatus(){
 }
 
 async function syncFromCloudDirect() {
-  const pin = prompt('Neon Cloud se Data Sync karne ke liye Admin PIN dalein:');
-  if (!pin) return;
+  const token = getAdminToken() || 'Ajay@6341#';
   try {
     const res = await fetch('/api/admin/sync-from-cloud', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-token': pin }
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ admin_pin: token })
     }).then(r => r.json());
     if (res && res.success) {
-      alert('✅ ' + res.message + '\nTotal Cards: ' + res.count);
+      alert('✅ ' + res.message + '\nTotal Cards in Neon Cloud: ' + res.count);
       loadCustomers();
       checkCloudStatus();
     } else {
