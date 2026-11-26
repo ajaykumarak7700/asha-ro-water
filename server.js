@@ -88,7 +88,9 @@ if (Pool && process.env.DATABASE_URL) {
   try {
     pgPool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
+      ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
+      connectionTimeoutMillis: 5000,
+      idleTimeoutMillis: 10000
     });
     console.log('🐘 PostgreSQL Cloud Database detected from DATABASE_URL!');
   } catch (pgErr) {
@@ -277,8 +279,11 @@ app.get('/api/cloud-status', async (req, res) => {
   let pgCustomers = [];
   if (pgPool) {
     try {
-      const qRes = await pgPool.query("SELECT data FROM app_state WHERE key = 'asha_ro_water_db'");
-      if (qRes.rows.length > 0 && qRes.rows[0].data) {
+      // 5-second query timeout
+      const queryPromise = pgPool.query("SELECT data FROM app_state WHERE key = 'asha_ro_water_db'");
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('PostgreSQL Query Timeout (5s) - Could not connect to host')), 5000));
+      const qRes = await Promise.race([queryPromise, timeoutPromise]);
+      if (qRes && qRes.rows && qRes.rows.length > 0 && qRes.rows[0].data) {
         pgStatus = 'connected';
         pgCount = qRes.rows[0].data.customers ? qRes.rows[0].data.customers.length : 0;
         pgCustomers = qRes.rows[0].data.customers ? qRes.rows[0].data.customers.map(c => ({ name: c.name, uid: c.card_uid })) : [];
@@ -295,7 +300,7 @@ app.get('/api/cloud-status', async (req, res) => {
   res.json({
     success: true,
     has_db_url: !!process.env.DATABASE_URL,
-    db_url_starts_with: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 15) + '...' : 'none',
+    db_url_starts_with: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 18) + '...' : 'none',
     pg_status: pgStatus,
     pg_error: pgError,
     supabase_customers_count: pgCount,
