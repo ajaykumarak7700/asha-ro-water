@@ -557,6 +557,9 @@ app.get('/api/card/:uid', async (req, res) => {
     data: { ...c, balance_paise: db.wallets[c.id] || 0 },
     paise_per_litre: db.price.paise_per_litre,
     price_tiers: getPriceTiers(db),
+    cashback_enabled: db.settings.cashback_enabled !== false,
+    cashback_litres: parseFloat(db.settings.cashback_litres || 20),
+    cashback_rs: parseFloat(db.settings.cashback_rs !== undefined ? db.settings.cashback_rs : 1.0),
     default_card_litres: (db.settings && db.settings.default_card_litres) ? db.settings.default_card_litres : 2
   });
 });
@@ -1830,7 +1833,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', (req, res) => {
-  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, pulses_per_litre, dispense_mode, wait_button_seconds, multi_quantity_enabled, auto_refund_upi, price_tiers } = req.body;
+  const { cashback_enabled, cashback_litres, cashback_rs, default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, pulses_per_litre, dispense_mode, wait_button_seconds, multi_quantity_enabled, auto_refund_upi, price_tiers } = req.body;
   if (!verifyAdmin(req)) {
     return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
   }
@@ -2136,7 +2139,9 @@ app.get('/api/pay-info/:customer_id', async (req, res) => {
       upi_qr_data: squareUpiQr || c.razorpay_qr_image || '',
       upi_intent: upiIntent,
       razorpay_qr_image: c.razorpay_qr_image || '',
-      price_per_litre: ((db.price.paise_per_litre || 100) / 100).toFixed(2)
+      price_per_litre: ((db.price.paise_per_litre || 100) / 100).toFixed(2),
+      cashback_litres: db.settings?.cashback_litres || 20,
+      cashback_reward_rs: db.settings?.cashback_rs !== undefined ? db.settings.cashback_rs : 1.0
     });
   } catch(err) {
     res.status(500).json({ success: false, message: err.message });

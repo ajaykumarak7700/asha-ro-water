@@ -33,7 +33,7 @@
       "address": "MADHUBANI",
       "card_uid": "A4 81 E0 B6",
       "created_at": "26/11/2026, 8:36:09 pm",
-      "allow_offline": false,
+      "allow_offline": true,
       "razorpay_qr_id": "qr_U4qv6Iw3941oP1",
       "razorpay_qr_image": "https://rzp.io/rzp/MgZo0by"
     },

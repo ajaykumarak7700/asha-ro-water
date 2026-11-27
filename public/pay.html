@@ -147,7 +147,7 @@ async function loadPage(){
       <div class="wallet-box cashback">
         <div class="w-title">🎁 Cashback</div>
         <div class="w-amount" id="cashbackTxt">₹${res.cashback_rs || '0.00'}</div>
-        <div class="w-sub">Har 20L Par ₹1 Cashback</div>
+        <div class="w-sub" id="cashbackSubTxt">Har ${res.cashback_litres || 20}L Par ₹${res.cashback_reward_rs || 1} Cashback</div>
         <button class="claim-btn" id="claimBtn" ${cbVal <= 0 ? 'disabled' : ''} onclick="claimCashback()">
           ${cbVal > 0 ? `🎁 Claim ₹${cbVal.toFixed(0)}` : 'Claim Karein'}
         </button>
