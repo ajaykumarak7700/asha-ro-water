@@ -465,15 +465,19 @@ input:focus,select:focus{border-color:var(--blue)}
           <div id="priceAlert"></div>
 
           <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:14px;margin-bottom:16px">
-            <div style="font-size:12px;color:#166534;font-weight:700">💧 Current Live Settings & Protection Status</div>
+            <div style="font-size:12px;color:#166534;font-weight:700">💧 Current Live Settings & Machine Status</div>
             <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:8px">
               <div>
-                <span style="font-size:11px;color:#4b5563">Water Rate:</span>
+                <span style="font-size:11px;color:#4b5563">वाटर रेट (Rate):</span>
                 <div style="font-size:22px;font-weight:800;color:var(--blue)" id="currentPrice">₹1.00 / L</div>
               </div>
               <div>
-                <span style="font-size:11px;color:#4b5563">Card Tap Par Paani:</span>
-                <div style="font-size:22px;font-weight:800;color:var(--green)" id="currentCardLitres">20 Litres</div>
+                <span style="font-size:11px;color:#4b5563">स्मार्ट कार्ड कैशबैक:</span>
+                <div style="font-size:22px;font-weight:800;color:#16a34a" id="currentCashbackBadge">20L पर ₹1</div>
+              </div>
+              <div>
+                <span style="font-size:11px;color:#4b5563">टंकी कुल क्षमता:</span>
+                <div style="font-size:22px;font-weight:800;color:#0284c7" id="currentTankCapBadge">1000 Litres</div>
               </div>
               <div>
                 <span style="font-size:11px;color:#4b5563">मशीन ऑफ़लाइन टाइमर:</span>
@@ -488,12 +492,8 @@ input:focus,select:focus{border-color:var(--blue)}
                 <div style="font-size:22px;font-weight:800;color:#0284c7" id="currentPulsesPerLitre">450 P/L</div>
               </div>
               <div>
-                <span style="font-size:11px;color:#4b5563">डिस्पेंस मोड:</span>
-                <div style="font-size:18px;font-weight:800;color:#2563eb;margin-top:3px" id="currentDispenseMode">बटन मोड (Safe)</div>
-              </div>
-              <div>
                 <span style="font-size:11px;color:#4b5563">ऑटो-रिफंड UPI:</span>
-                <div style="font-size:18px;font-weight:800;color:#059669;margin-top:3px" id="currentAutoRefund">चालू (Active)</div>
+                <div style="font-size:20px;font-weight:800;color:#059669" id="currentAutoRefund">चालू (Active)</div>
               </div>
             </div>
           </div>
@@ -1795,47 +1795,41 @@ async function submitEdit(){
 async function loadPrice(){
   const res = await fetch('/api/settings').then(r=>r.json()).catch(()=>null);
   if(res && res.success){
-    document.getElementById('currentPrice').textContent = `₹${res.price_per_litre_rs} / L`;
-    document.getElementById('currentCardLitres').textContent = `${res.default_card_litres} Litres`;
+    if (document.getElementById('currentPrice')) document.getElementById('currentPrice').textContent = `₹${res.price_per_litre_rs} / L`;
+    if (document.getElementById('newPriceInput')) document.getElementById('newPriceInput').value = res.price_per_litre_rs;
+
     if(res.order_expiry_seconds) {
-      document.getElementById('currentExpirySeconds').textContent = `${res.order_expiry_seconds} Sec`;
-      document.getElementById('orderExpirySecondsInput').value = res.order_expiry_seconds;
+      if (document.getElementById('currentExpirySeconds')) document.getElementById('currentExpirySeconds').textContent = `${res.order_expiry_seconds} Sec`;
+      if (document.getElementById('orderExpirySecondsInput')) document.getElementById('orderExpirySecondsInput').value = res.order_expiry_seconds;
     }
     if(res.flow_stall_seconds) {
-      document.getElementById('currentStallSeconds').textContent = `${res.flow_stall_seconds} Sec`;
-      document.getElementById('flowStallSecondsInput').value = res.flow_stall_seconds;
+      if (document.getElementById('currentStallSeconds')) document.getElementById('currentStallSeconds').textContent = `${res.flow_stall_seconds} Sec`;
+      if (document.getElementById('flowStallSecondsInput')) document.getElementById('flowStallSecondsInput').value = res.flow_stall_seconds;
     }
     if(res.pulses_per_litre) {
-      document.getElementById('currentPulsesPerLitre').textContent = `${res.pulses_per_litre} P/L`;
-      document.getElementById('pulsesPerLitreInput').value = res.pulses_per_litre;
+      if (document.getElementById('currentPulsesPerLitre')) document.getElementById('currentPulsesPerLitre').textContent = `${res.pulses_per_litre} P/L`;
+      if (document.getElementById('pulsesPerLitreInput')) document.getElementById('pulsesPerLitreInput').value = res.pulses_per_litre;
     }
-    if(res.dispense_mode) {
-      document.getElementById('dispenseModeSelect').value = res.dispense_mode;
-      const isBtn = res.dispense_mode === 'button';
-      document.getElementById('currentDispenseMode').textContent = isBtn ? 'बटन मोड (Safe)' : 'ऑटोमेटिक (तुरंत)';
-      document.getElementById('currentDispenseMode').style.color = isBtn ? '#2563eb' : '#059669';
-    }
-    if(res.wait_button_seconds) {
-      document.getElementById('waitButtonSecondsInput').value = res.wait_button_seconds;
-    }
-    if(res.multi_quantity_enabled !== undefined) {
-      document.getElementById('multiQuantityToggle').checked = res.multi_quantity_enabled !== false;
-    }
+
     if(res.auto_refund_upi !== undefined) {
       const isUpiOn = res.auto_refund_upi !== false;
-      document.getElementById('autoRefundUpiToggle').checked = isUpiOn;
-      document.getElementById('currentAutoRefund').textContent = isUpiOn ? 'चालू (Active)' : 'बंद (Off)';
-      document.getElementById('currentAutoRefund').style.color = isUpiOn ? '#059669' : '#dc2626';
+      if (document.getElementById('autoRefundUpiToggle')) document.getElementById('autoRefundUpiToggle').checked = isUpiOn;
+      if (document.getElementById('currentAutoRefund')) {
+        document.getElementById('currentAutoRefund').textContent = isUpiOn ? 'चालू (Active)' : 'बंद (Off)';
+        document.getElementById('currentAutoRefund').style.color = isUpiOn ? '#059669' : '#dc2626';
+      }
     }
+
     if(res.cashback_enabled !== undefined) {
-      document.getElementById('cashbackToggle').checked = res.cashback_enabled !== false;
+      if (document.getElementById('cashbackToggle')) document.getElementById('cashbackToggle').checked = res.cashback_enabled !== false;
     }
     if(res.cashback_litres) {
-      document.getElementById('cashbackLitresInput').value = res.cashback_litres;
+      if (document.getElementById('cashbackLitresInput')) document.getElementById('cashbackLitresInput').value = res.cashback_litres;
     }
     if(res.cashback_rs !== undefined) {
-      document.getElementById('cashbackRsInput').value = res.cashback_rs;
+      if (document.getElementById('cashbackRsInput')) document.getElementById('cashbackRsInput').value = res.cashback_rs;
     }
+
     const cbL = res.cashback_litres || 20;
     const cbR = res.cashback_rs !== undefined ? res.cashback_rs : 1.0;
     const isCbOn = res.cashback_enabled !== false;
@@ -1844,7 +1838,15 @@ async function loadPrice(){
       badgeEl.textContent = isCbOn ? `${cbL}L पर ₹${cbR}` : 'बंद (Off)';
       badgeEl.style.color = isCbOn ? '#16a34a' : '#94a3b8';
     }
-    if(document.getElementById('newPriceInput')) document.getElementById('newPriceInput').value = res.price_per_litre_rs;
+
+    if (res.tank_capacity_litres) {
+      if (document.getElementById('currentTankCapBadge')) document.getElementById('currentTankCapBadge').textContent = `${res.tank_capacity_litres} Litres`;
+      if (document.getElementById('tankCapacityInput')) document.getElementById('tankCapacityInput').value = res.tank_capacity_litres;
+    }
+    if (document.getElementById('tankAlertThresholdInput') && res.tank_alert_threshold !== undefined) {
+      document.getElementById('tankAlertThresholdInput').value = res.tank_alert_threshold;
+    }
+
     if (res.price_tiers) {
       if (document.getElementById('tier1LInput')) document.getElementById('tier1LInput').value = res.price_tiers["1"] || 1.0;
       if (document.getElementById('tier2LInput')) document.getElementById('tier2LInput').value = res.price_tiers["2"] || 2.0;
@@ -1853,11 +1855,9 @@ async function loadPrice(){
       if (document.getElementById('tier15LInput')) document.getElementById('tier15LInput').value = res.price_tiers["15"] || 15.0;
       if (document.getElementById('tier20LInput')) document.getElementById('tier20LInput').value = res.price_tiers["20"] || 15.0;
     }
-    if (document.getElementById('tankCapacityInput') && res.tank_capacity_litres) document.getElementById('tankCapacityInput').value = res.tank_capacity_litres;
-    if (document.getElementById('tankAlertThresholdInput') && res.tank_alert_threshold) document.getElementById('tankAlertThresholdInput').value = res.tank_alert_threshold;
-    document.getElementById('defaultCardLitresInput').value = res.default_card_litres;
-    if(res.razorpay_key_id) document.getElementById('rzpKeyInput').value = res.razorpay_key_id;
-    if(res.razorpay_key_secret) document.getElementById('rzpSecretInput').value = res.razorpay_key_secret;
+
+    if(res.razorpay_key_id && document.getElementById('rzpKeyInput')) document.getElementById('rzpKeyInput').value = res.razorpay_key_id;
+    if(res.razorpay_key_secret && document.getElementById('rzpSecretInput')) document.getElementById('rzpSecretInput').value = res.razorpay_key_secret;
   }
   checkCloudStatus();
 }
@@ -1906,7 +1906,7 @@ async function syncFromCloudDirect() {
 
 async function updatePrice(){
   const body = {
-    price_per_litre_rs: document.getElementById('newPriceInput').value,
+    price_per_litre_rs: document.getElementById('newPriceInput')?.value || "1.00",
     price_tiers: {
       "1": parseFloat(document.getElementById('tier1LInput')?.value || 1.0),
       "2": parseFloat(document.getElementById('tier2LInput')?.value || 2.0),
@@ -1915,20 +1915,20 @@ async function updatePrice(){
       "15": parseFloat(document.getElementById('tier15LInput')?.value || 15.0),
       "20": parseFloat(document.getElementById('tier20LInput')?.value || 15.0)
     },
-    default_card_litres: document.getElementById('defaultCardLitresInput').value,
-    order_expiry_seconds: document.getElementById('orderExpirySecondsInput').value,
-    flow_stall_seconds: document.getElementById('flowStallSecondsInput').value,
-    pulses_per_litre: document.getElementById('pulsesPerLitreInput').value,
-    dispense_mode: document.getElementById('dispenseModeSelect').value,
-    wait_button_seconds: document.getElementById('waitButtonSecondsInput').value,
-    multi_quantity_enabled: document.getElementById('multiQuantityToggle').checked,
-    auto_refund_upi: document.getElementById('autoRefundUpiToggle').checked,
-    razorpay_key_id: document.getElementById('rzpKeyInput').value,
-    razorpay_key_secret: document.getElementById('rzpSecretInput').value,
-    admin_pin: document.getElementById('pricePinInput').value || getAdminToken()
+    cashback_enabled: document.getElementById('cashbackToggle') ? document.getElementById('cashbackToggle').checked : true,
+    cashback_litres: parseFloat(document.getElementById('cashbackLitresInput')?.value || 20),
+    cashback_rs: parseFloat(document.getElementById('cashbackRsInput')?.value || 1.0),
+    tank_capacity_litres: parseFloat(document.getElementById('tankCapacityInput')?.value || 1000),
+    tank_alert_threshold: parseFloat(document.getElementById('tankAlertThresholdInput')?.value || 100),
+    order_expiry_seconds: document.getElementById('orderExpirySecondsInput')?.value,
+    flow_stall_seconds: document.getElementById('flowStallSecondsInput')?.value,
+    pulses_per_litre: document.getElementById('pulsesPerLitreInput')?.value,
+    auto_refund_upi: document.getElementById('autoRefundUpiToggle') ? document.getElementById('autoRefundUpiToggle').checked : true,
+    razorpay_key_id: document.getElementById('rzpKeyInput')?.value,
+    razorpay_key_secret: document.getElementById('rzpSecretInput')?.value,
+    admin_pin: document.getElementById('pricePinInput')?.value || getAdminToken()
   };
-  const tankCapacityVal = parseFloat(document.getElementById('tankCapacityInput')?.value || 1000);
-  const tankAlertVal = parseFloat(document.getElementById('tankAlertThresholdInput')?.value || 100);
+
   const res = await fetch('/api/settings', {
     method: 'POST',
     headers: {
