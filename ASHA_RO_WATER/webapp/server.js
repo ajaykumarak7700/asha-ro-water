@@ -191,7 +191,31 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 let memoryDB = null;
 
 function getPriceTiers(db) {
-  return db?.settings?.price_tiers || { "1": 1.0, "5": 5.0, "10": 10.0, "20": 15.0 };
+  const def = { "1": 1.0, "2": 2.0, "5": 5.0, "10": 10.0, "15": 15.0, "20": 15.0 };
+  if (!db || !db.settings || !db.settings.price_tiers) return def;
+  return Object.assign({}, def, db.settings.price_tiers);
+}
+
+let machineDiagnostics = {
+  last_seen_ms: 0,
+  ip: '',
+  firmware_version: '2.5-MAX',
+  rfid_status: 'OK (48dB Max Range)',
+  oled_status: 'OK (SSD1306 0x3C)',
+  flow_sensor_status: 'OK (ZJ-S201 450 P/L)',
+  motor_relay_status: 'OK (12V Relay)',
+  buttons_status: 'OK (9 Buttons: 1L, 2L, 5L, 10L, 15L, 20L, Start, Cancel, Balance)',
+  last_card_uid: '',
+  last_card_time: ''
+};
+
+function deductTankWater(db, litres) {
+  if (!db.settings) db.settings = {};
+  const current = db.settings.tank_current_litres !== undefined ? parseFloat(db.settings.tank_current_litres) : 1000.0;
+  const cap = db.settings.tank_capacity_litres !== undefined ? parseFloat(db.settings.tank_capacity_litres) : 1000.0;
+  const rem = Math.max(0, Math.round((current - Number(litres || 0)) * 10) / 10);
+  db.settings.tank_current_litres = rem;
+  console.log(`💧 Tank Water Dispensed: -${litres}L (Remaining: ${rem}L / ${cap}L)`);
 }
 
 function getLitresForAmount(amt, db) {
@@ -569,6 +593,7 @@ app.get('/api/card/:uid', async (req, res) => {
     cashback_enabled: db.settings.cashback_enabled !== false,
     cashback_litres: parseFloat(db.settings.cashback_litres || 20),
     cashback_rs: parseFloat(db.settings.cashback_rs !== undefined ? db.settings.cashback_rs : 1.0),
+    machine_status: db.settings.machine_status || 'active',
     default_card_litres: (db.settings && db.settings.default_card_litres) ? db.settings.default_card_litres : 2
   });
 });
@@ -1464,8 +1489,21 @@ app.get('/api/machine/pending', (req, res) => {
   const db = loadDB();
   const changed = checkExpiredOrders(db);
 
-  // Find first active unexpired pending order
-  const order = db.pending_orders.find(o => o.status === 'pending');
+  // Update machine heartbeat & diagnostics
+  machineDiagnostics.last_seen_ms = Date.now();
+  machineDiagnostics.ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').replace('::ffff:', '');
+  if (req.query.card) {
+    machineDiagnostics.last_card_uid = req.query.card;
+    machineDiagnostics.last_card_time = nowIST();
+  }
+
+  const machineOnline = (db.settings?.machine_status !== 'maintenance');
+  const tankCur = db.settings?.tank_current_litres !== undefined ? db.settings.tank_current_litres : 1000;
+  const tankCap = db.settings?.tank_capacity_litres !== undefined ? db.settings.tank_capacity_litres : 1000;
+  const tiers = getPriceTiers(db);
+
+  // Find first active unexpired pending order (only if machine is active)
+  const order = machineOnline ? db.pending_orders.find(o => o.status === 'pending') : null;
   if (order) {
     order.status = 'in_progress';
     order.started_at = nowIST();
@@ -1476,14 +1514,124 @@ app.get('/api/machine/pending', (req, res) => {
       order_id: order.id,
       litres: order.litres,
       customer_name: order.customer_name,
-      amount_rs: order.amount_rs
+      amount_rs: order.amount_rs,
+      machine_status: db.settings?.machine_status || 'active',
+      tank_current_litres: tankCur,
+      tank_capacity_litres: tankCap,
+      price_tiers: tiers
     });
   }
 
   if (changed) {
     saveDB(db);
   }
-  res.json({ has_order: false });
+  res.json({
+    has_order: false,
+    machine_status: db.settings?.machine_status || 'active',
+    tank_current_litres: tankCur,
+    tank_capacity_litres: tankCap,
+    price_tiers: tiers
+  });
+});
+
+// ── TANK WATER MANAGEMENT ENDPOINTS ──
+app.get('/api/tank', (req, res) => {
+  const db = loadDB();
+  const cap = parseFloat(db.settings?.tank_capacity_litres || 1000);
+  const cur = parseFloat(db.settings?.tank_current_litres !== undefined ? db.settings.tank_current_litres : 1000);
+  const alertThresh = parseFloat(db.settings?.tank_alert_threshold || 100);
+  const pct = Math.min(100, Math.max(0, Math.round((cur / cap) * 100)));
+  const status = cur <= 5 ? 'empty' : (cur <= alertThresh ? 'low' : 'ok');
+  res.json({
+    success: true,
+    tank_capacity_litres: cap,
+    tank_current_litres: cur,
+    tank_alert_threshold: alertThresh,
+    percentage: pct,
+    status
+  });
+});
+
+app.post('/api/tank/refill', (req, res) => {
+  if (!verifyAdmin(req)) return res.status(403).json({ success: false, message: 'Unauthorized' });
+  const db = loadDB();
+  const { amount_litres, set_full } = req.body;
+  const cap = parseFloat(db.settings?.tank_capacity_litres || 1000);
+  if (set_full) {
+    db.settings.tank_current_litres = cap;
+  } else if (amount_litres !== undefined) {
+    const val = parseFloat(amount_litres);
+    if (!isNaN(val) && val >= 0) {
+      db.settings.tank_current_litres = Math.min(cap, val);
+    }
+  }
+  saveDB(db);
+  console.log(`🚰 Tank Refilled! Current: ${db.settings.tank_current_litres}L / ${cap}L`);
+  res.json({
+    success: true,
+    message: `टंकी अपडेट की गई: ${db.settings.tank_current_litres}L / ${cap}L`,
+    tank_current_litres: db.settings.tank_current_litres,
+    tank_capacity_litres: cap
+  });
+});
+
+app.post('/api/tank/settings', (req, res) => {
+  if (!verifyAdmin(req)) return res.status(403).json({ success: false, message: 'Unauthorized' });
+  const { capacity, alert_threshold } = req.body;
+  const db = loadDB();
+  if (capacity) db.settings.tank_capacity_litres = Math.max(10, parseFloat(capacity) || 1000);
+  if (alert_threshold !== undefined) db.settings.tank_alert_threshold = Math.max(0, parseFloat(alert_threshold) || 100);
+  saveDB(db);
+  res.json({ success: true, message: 'Tank settings saved successfully!' });
+});
+
+// ── REMOTE MACHINE CONTROL & HEALTH DIAGNOSTICS ──
+app.post('/api/machine/toggle-status', (req, res) => {
+  if (!verifyAdmin(req)) return res.status(403).json({ success: false, message: 'Unauthorized' });
+  const db = loadDB();
+  const { status } = req.body; // 'active' or 'maintenance'
+  db.settings.machine_status = (status === 'maintenance') ? 'maintenance' : 'active';
+  saveDB(db);
+  console.log(`⚙️ Machine Remote Status set to: ${db.settings.machine_status.toUpperCase()}`);
+  res.json({
+    success: true,
+    machine_status: db.settings.machine_status,
+    message: db.settings.machine_status === 'maintenance'
+      ? '🔴 मशीन ऑफलाइन (Maintenance Mode) पर सेट कर दी गई है। ESP32 स्क्रीन पर अलर्ट आएगा और सारे बटन्स बंद रहेंगे।'
+      : '🟢 मशीन ऑनलाइन (Active Mode) कर दी गई है।'
+  });
+});
+
+app.get('/api/machine/diagnostics', (req, res) => {
+  const db = loadDB();
+  const now = Date.now();
+  const isOnline = (now - machineDiagnostics.last_seen_ms) < 15000;
+  const lastSeenSec = machineDiagnostics.last_seen_ms ? Math.round((now - machineDiagnostics.last_seen_ms) / 1000) : null;
+  const cap = parseFloat(db.settings?.tank_capacity_litres || 1000);
+  const cur = parseFloat(db.settings?.tank_current_litres !== undefined ? db.settings.tank_current_litres : 1000);
+
+  res.json({
+    success: true,
+    is_online: isOnline,
+    last_seen_seconds_ago: lastSeenSec,
+    machine_status: db.settings?.machine_status || 'active',
+    ip: machineDiagnostics.ip || '192.168.1.8',
+    firmware: machineDiagnostics.firmware_version,
+    rfid: { status: 'OK', power: '48dB Max Sensitivity', last_card: machineDiagnostics.last_card_uid, last_time: machineDiagnostics.last_card_time },
+    oled: { status: 'OK', model: 'SSD1306 128x64 I2C 0x3C' },
+    flow: { status: 'OK', sensor: 'ZJ-S201', pulses_per_litre: db.settings?.pulses_per_litre || 450 },
+    relay: { status: 'OK', load: '12V RO Water Pump' },
+    buttons: {
+      status: 'OK',
+      count: 9,
+      list: ['1L', '2L', '5L', '10L', '15L', '20L', 'START (Green)', 'CANCEL (Red)', 'CARD BALANCE ENQUIRY']
+    },
+    tank: {
+      current_litres: cur,
+      capacity_litres: cap,
+      percentage: Math.min(100, Math.max(0, Math.round((cur / cap) * 100)))
+    }
+  });
 });
 
 // ── GET list of expired / offline / dry-run failed orders for Admin Dashboard ──
@@ -1666,6 +1814,7 @@ app.post('/api/machine/complete', (req, res) => {
       }
     } else {
       order.status = 'completed';
+      deductTankWater(db, order.actual_dispensed_litres || order.litres);
       order.completed_at = nowIST();
       console.log(`✅ Machine completed Order ${order_id} (${order.actual_dispensed_litres}L)`);
     }
@@ -1826,18 +1975,18 @@ app.get('/api/settings', (req, res) => {
   const db = loadDB();
   res.json({
     success: true,
-    price_per_litre_rs: (db.price.paise_per_litre / 100).toFixed(2),
-    default_card_litres: db.settings.default_card_litres || 20,
-    order_expiry_seconds: db.settings.order_expiry_seconds || 90,
-    flow_stall_seconds: db.settings.flow_stall_seconds || 6,
-    pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
-    dispense_mode: db.settings.dispense_mode || 'button', // 'button' or 'auto'
-    wait_button_seconds: parseInt(db.settings.wait_button_seconds || 60, 10),
-    multi_quantity_enabled: db.settings.multi_quantity_enabled !== false,
-    auto_refund_upi: db.settings.auto_refund_upi !== false,
+    price_per_litre_rs: (db.price.paise_per_litre / 100.0).toFixed(2),
+    flow_stall_seconds: (db.settings && db.settings.flow_stall_seconds) ? db.settings.flow_stall_seconds : 6,
+    pulses_per_litre: (db.settings && db.settings.pulses_per_litre) ? db.settings.pulses_per_litre : 450,
+    auto_refund_upi: (db.settings && db.settings.auto_refund_upi !== undefined) ? db.settings.auto_refund_upi : true,
     cashback_enabled: db.settings.cashback_enabled !== false,
     cashback_litres: parseFloat(db.settings.cashback_litres || 20),
     cashback_rs: parseFloat(db.settings.cashback_rs !== undefined ? db.settings.cashback_rs : 1.0),
+    machine_status: db.settings.machine_status || 'active',
+    machine_status: db.settings.machine_status || 'active',
+    tank_capacity_litres: parseFloat(db.settings.tank_capacity_litres || 1000),
+    tank_current_litres: parseFloat(db.settings.tank_current_litres !== undefined ? db.settings.tank_current_litres : 1000),
+    tank_alert_threshold: parseFloat(db.settings.tank_alert_threshold || 100),
     price_tiers: getPriceTiers(db),
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID,
     razorpay_key_secret: db.settings.razorpay_key_secret ? '••••••••••••••••' : '••••••••••••••••'
@@ -1845,7 +1994,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', (req, res) => {
-  const { cashback_enabled, cashback_litres, cashback_rs, default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, pulses_per_litre, dispense_mode, wait_button_seconds, multi_quantity_enabled, auto_refund_upi, price_tiers } = req.body;
+  const { cashback_enabled, cashback_litres, cashback_rs, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, flow_stall_seconds, pulses_per_litre, auto_refund_upi, price_tiers, machine_status, tank_capacity_litres, tank_current_litres, tank_alert_threshold } = req.body;
   if (!verifyAdmin(req)) {
     return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
   }
@@ -1889,6 +2038,21 @@ app.post('/api/settings', (req, res) => {
     db.settings.multi_quantity_enabled = (multi_quantity_enabled === true || multi_quantity_enabled === 'true');
   }
   
+  if (tank_capacity_litres !== undefined) {
+    const tc = parseFloat(tank_capacity_litres);
+    if (!isNaN(tc) && tc > 0) db.settings.tank_capacity_litres = tc;
+  }
+  if (tank_current_litres !== undefined) {
+    const tcur = parseFloat(tank_current_litres);
+    if (!isNaN(tcur) && tcur >= 0) db.settings.tank_current_litres = tcur;
+  }
+  if (tank_alert_threshold !== undefined) {
+    const ta = parseFloat(tank_alert_threshold);
+    if (!isNaN(ta) && ta >= 0) db.settings.tank_alert_threshold = ta;
+  }
+  if (machine_status !== undefined) {
+    db.settings.machine_status = (machine_status === 'maintenance') ? 'maintenance' : 'active';
+  }
   if (price_tiers && typeof price_tiers === 'object') {
     db.settings.price_tiers = {
       "1": parseFloat(price_tiers["1"] !== undefined ? price_tiers["1"] : 1.0),

@@ -127,6 +127,13 @@ async function loadPage(){
   mainBody.innerHTML = `
     <div id="alertBox"></div>
 
+    ${res.machine_status === 'maintenance' ? `
+      <div style="background:#fee2e2;border:1.5px solid #f87171;color:#991b1b;padding:12px 14px;border-radius:12px;font-size:13px;font-weight:700;margin-bottom:14px;text-align:center">
+        🛠️ <strong>मशीन अभी बंद (Maintenance Mode) है</strong><br>
+        <span style="font-size:11.5px;font-weight:500">रखरखाव कार्य चल रहा है। कृपया कुछ देर बाद कार्ड से पानी निकालें।</span>
+      </div>
+    ` : ''}
+
     <!-- CUSTOMER PROFILE -->
     <div class="cust-badge">
       <div class="cust-name">👤 ${res.full_name || res.display_name}</div>

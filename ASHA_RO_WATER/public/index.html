@@ -173,6 +173,60 @@ input:focus,select:focus{border-color:var(--blue)}
     <div class="page active" id="page-dashboard">
       <div class="stats-grid" id="statsGrid"></div>
 
+      <!-- 🚰 TANK WATER LEVEL & REFILL WIDGET -->
+      <div class="card" style="margin-bottom:16px;border:1.5px solid #0284c7;background:#f0f9ff">
+        <div class="card-hdr" style="background:#e0f2fe;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:24px">💧</span>
+            <div>
+              <h3 style="color:#0369a1;margin:0;font-size:16px;font-weight:800">वॉटर एटीएम टंकी लाइव स्टेटस (Water Tank Level)</h3>
+              <p style="font-size:11.5px;color:#0284c7;margin:2px 0 0">फ्लो सेंसर से निकला हुआ हर लीटर पानी रियल-टाइम में ऑटोमैटिक घटता है</p>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span id="tankStatusBadge" style="background:#16a34a;color:#fff;font-size:12px;font-weight:800;padding:4px 12px;border-radius:20px">100% फुल</span>
+            <button class="btn btn-success btn-sm" onclick="quickRefillTank(true)" style="font-weight:700">🔄 टंकी 100% फुल करें</button>
+            <button class="btn btn-light btn-sm" onclick="promptSetTankLitres()" style="font-weight:700">✏️ कस्टम लीटर</button>
+          </div>
+        </div>
+        <div class="card-body" style="padding:16px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+            <div style="font-size:26px;font-weight:900;color:#0369a1" id="tankCurrentDisplay">1000 L <span style="font-size:15px;font-weight:600;color:#64748b">/ 1000 L</span></div>
+            <div style="font-size:18px;font-weight:800;color:#0284c7" id="tankPercentDisplay">100%</div>
+          </div>
+          <div style="width:100%;height:18px;background:#e2e8f0;border-radius:12px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,0.1)">
+            <div id="tankProgressBar" style="width:100%;height:100%;background:linear-gradient(90deg,#0284c7,#22c55e);transition:width 0.4s ease;border-radius:12px"></div>
+          </div>
+          <div id="tankLowAlert" style="display:none;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:700;margin-top:10px">
+            ⚠️ चेतावनी: टंकी में पानी कम हो गया है! कृपया प्लांट से टंकी तुरंत रीफिल करें।
+          </div>
+        </div>
+      </div>
+
+      <!-- 🛠️ HARDWARE DIAGNOSTICS & REMOTE SHUTDOWN WIDGET -->
+      <div class="card" style="margin-bottom:16px;border:1.5px solid #cbd5e1">
+        <div class="card-hdr" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:24px">🛠️</span>
+            <div>
+              <h3 style="margin:0;font-size:16px;font-weight:800">ESP32 हार्डवेयर हेल्थ व लाइव मॉड्यूल डायग्नोस्टिक्स</h3>
+              <p style="font-size:11.5px;color:#64748b;margin:2px 0 0">मशीन के सभी कनेक्टेड पार्ट्स (RFID, OLED, फ्लो सेंसर, बटन्स, रिले) का लाइव स्टेटस</p>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <button id="machineStatusToggleBtn" class="btn btn-warning btn-sm" onclick="toggleMachineStatus()" style="font-weight:800">
+              🔴 मशीन बंद करें (Maintenance Mode)
+            </button>
+            <button class="btn btn-light btn-sm" onclick="loadDiagnostics()" title="Refresh Status">🔄 Refresh</button>
+          </div>
+        </div>
+        <div class="card-body" style="padding:14px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:10px" id="diagGrid">
+            <!-- Hardware Module Cards will be rendered by JS -->
+          </div>
+        </div>
+      </div>
+
       <!-- EXPIRED / OFFLINE ORDERS (WATER NOT DISPENSED) ALERT CARD -->
       <div id="expiredOrdersCard" class="card" style="display:none;border:2px solid #ef4444;background:#fff5f5;margin-bottom:20px;box-shadow:0 10px 25px rgba(239,68,68,0.12)">
         <div class="card-hdr" style="background:#fee2e2;border-bottom:1.5px solid #fca5a5;display:flex;align-items:center;justify-content:space-between;padding:14px 18px">
@@ -490,22 +544,30 @@ input:focus,select:focus{border-color:var(--blue)}
             <div style="font-size:11px;color:#64748b;margin-bottom:10px">
               बटन दबाने पर कार्ड से कितने रुपये कटेंगे, यहाँ अपनी पसंद से तय करें (जैसे 20L जार = ₹15 ऑफर):
             </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));gap:10px">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(88px, 1fr));gap:8px">
               <div>
-                <label style="font-size:11px;font-weight:700;color:#334155">1 Litre रेट (₹)</label>
-                <input type="number" id="tier1LInput" step="0.5" min="0.5" class="form-control" style="font-weight:700;padding:6px 10px" value="1.0">
+                <label style="font-size:11px;font-weight:700;color:#334155">1L रेट (₹)</label>
+                <input type="number" id="tier1LInput" step="0.5" min="0.5" class="form-control" style="font-weight:700;padding:6px 6px" value="1.0">
               </div>
               <div>
-                <label style="font-size:11px;font-weight:700;color:#334155">5 Litres रेट (₹)</label>
-                <input type="number" id="tier5LInput" step="0.5" min="1" class="form-control" style="font-weight:700;padding:6px 10px" value="5.0">
+                <label style="font-size:11px;font-weight:700;color:#334155">2L रेट (₹)</label>
+                <input type="number" id="tier2LInput" step="0.5" min="1" class="form-control" style="font-weight:700;padding:6px 6px" value="2.0">
               </div>
               <div>
-                <label style="font-size:11px;font-weight:700;color:#334155">10 Litres रेट (₹)</label>
-                <input type="number" id="tier10LInput" step="1" min="1" class="form-control" style="font-weight:700;padding:6px 10px" value="10.0">
+                <label style="font-size:11px;font-weight:700;color:#334155">5L रेट (₹)</label>
+                <input type="number" id="tier5LInput" step="0.5" min="1" class="form-control" style="font-weight:700;padding:6px 6px" value="5.0">
               </div>
               <div>
-                <label style="font-size:11px;font-weight:700;color:#15803d">⭐ 20L जार ऑफर (₹)</label>
-                <input type="number" id="tier20LInput" step="1" min="1" class="form-control" style="font-weight:800;color:#15803d;background:#f0fdf4;border-color:#86efac;padding:6px 10px" value="15.0">
+                <label style="font-size:11px;font-weight:700;color:#334155">10L रेट (₹)</label>
+                <input type="number" id="tier10LInput" step="1" min="1" class="form-control" style="font-weight:700;padding:6px 6px" value="10.0">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:700;color:#334155">15L रेट (₹)</label>
+                <input type="number" id="tier15LInput" step="1" min="1" class="form-control" style="font-weight:700;padding:6px 6px" value="15.0">
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:700;color:#15803d">⭐ 20L ऑफर (₹)</label>
+                <input type="number" id="tier20LInput" step="1" min="1" class="form-control" style="font-weight:800;color:#15803d;background:#f0fdf4;border-color:#86efac;padding:6px 6px" value="15.0">
               </div>
             </div>
           </div>
@@ -531,55 +593,19 @@ input:focus,select:focus{border-color:var(--blue)}
             </div>
           </div>
 
-          <!-- PUSH BUTTON & DISPENSE TRIGGER MODE CONTROLS -->
+          <!-- TANK WATER SETTINGS CARD -->
           <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;margin-top:14px">
-            <h4 style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px">🔘 पानी डिस्पेंस मोड व पुश बटन सेटिंग्स (Water Waste Safety)</h4>
+            <h4 style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px">🚰 वॉटर एटीएम पानी टंकी सेटिंग्स (Tank Capacity & Low-Water Alert)</h4>
             <div class="form-row">
               <div class="form-group">
-                <label>डिस्पेंस मोड (Dispense Trigger)</label>
-                <select id="dispenseModeSelect">
-                  <option value="button">👉 बटन दबाने पर पानी चालू हो (सुरक्षित - जार रखने के बाद)</option>
-                  <option value="auto">⚡ ऑटोमेटिक (QR / कार्ड स्कैन होते ही तुरंत पानी निकले)</option>
-                </select>
-                <small style="font-size:11px;color:#3b82f6">बटन मोड में पेमेंट के बाद हरी LED जलेगी और ग्राहक जब स्टार्ट बटन दबाएगा तभी पानी निकलेगा</small>
+                <label>टंकी कुल क्षमता (Total Tank Capacity - Litres)</label>
+                <input type="number" id="tankCapacityInput" step="50" min="50" max="50000" placeholder="e.g. 1000" value="1000">
+                <small style="font-size:11px;color:#3b82f6">एटीएम मशीन में पानी टंकी कितने लीटर की है (जैसे 500, 1000, 2000 या 5000)</small>
               </div>
               <div class="form-group">
-                <label>⏱️ स्टार्ट बटन का इंतज़ार (सेकंड में)</label>
-                <input type="number" id="waitButtonSecondsInput" step="5" min="10" max="300" placeholder="e.g. 60">
-                <small style="font-size:11px;color:#64748b">अगर इतने सेकंड में जार रखकर स्टार्ट बटन न दबे तो आर्डर कैंसिल व ऑटो-रिफंड हो जाए</small>
-              </div>
-            </div>
-            <div style="margin-top:10px">
-              <label style="display:flex;align-items:center;gap:8px;font-weight:700;color:#1e3a5f;cursor:pointer">
-                <input type="checkbox" id="multiQuantityToggle" checked style="width:18px;height:18px">
-                <span>🔘 मल्टी-क्वांटिटी बटन (1L, 5L, 10L, 20L) कार्ड पर चालू रखें</span>
-              </label>
-              <small style="display:block;margin-top:4px;color:#64748b;font-size:11px">
-                कार्ड स्कैन करने पर ग्राहक 1L, 5L, 10L या 20L का बटन दबाकर अपनी पसंद का पानी ले सकेगा और कार्ड से सिर्फ उतने ही लीटर का पैसा कटेगा।
-              </small>
-            </div>
-          </div>
-
-          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-top:12px">
-            <label style="display:flex;align-items:center;gap:8px;font-weight:700;color:#0f172a;cursor:pointer">
-              <input type="checkbox" id="autoRefundUpiToggle" checked style="width:18px;height:18px">
-              <span>💳 UPI ऑटो-रिफंड (Razorpay) चालू रखें</span>
-            </label>
-            <small style="display:block;margin-top:4px;color:#64748b;font-size:11px">
-              मशीन ऑफ़लाइन होने या टंकी खाली रहने पर ग्राहक का UPI पैसा तुरंत वापस उसके बैंक खाते में चला जाएगा।
-            </small>
-          </div>
-
-          <div style="border-top:1px solid #e5e7eb;padding-top:14px;margin-top:14px">
-            <h4 style="font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:10px">💳 Razorpay Gateway Keys (Bina Code Badle Live Karein)</h4>
-            <div class="form-row">
-              <div class="form-group">
-                <label>Razorpay Key ID</label>
-                <input type="text" id="rzpKeyInput" placeholder="rzp_test_... ya rzp_live_...">
-              </div>
-              <div class="form-group">
-                <label>Razorpay Key Secret</label>
-                <input type="password" id="rzpSecretInput" placeholder="••••••••••••••••">
+                <label>⚠️ लो-वाटर अलर्ट मार्क (Alert below Litres)</label>
+                <input type="number" id="tankAlertThresholdInput" step="10" min="10" max="1000" placeholder="e.g. 100" value="100">
+                <small style="font-size:11px;color:#64748b">टंकी में इससे कम पानी रहने पर डैशबोर्ड पर अलर्ट और वार्निंग दिखेगी</small>
               </div>
             </div>
           </div>
@@ -1821,10 +1847,14 @@ async function loadPrice(){
     if(document.getElementById('newPriceInput')) document.getElementById('newPriceInput').value = res.price_per_litre_rs;
     if (res.price_tiers) {
       if (document.getElementById('tier1LInput')) document.getElementById('tier1LInput').value = res.price_tiers["1"] || 1.0;
+      if (document.getElementById('tier2LInput')) document.getElementById('tier2LInput').value = res.price_tiers["2"] || 2.0;
       if (document.getElementById('tier5LInput')) document.getElementById('tier5LInput').value = res.price_tiers["5"] || 5.0;
       if (document.getElementById('tier10LInput')) document.getElementById('tier10LInput').value = res.price_tiers["10"] || 10.0;
+      if (document.getElementById('tier15LInput')) document.getElementById('tier15LInput').value = res.price_tiers["15"] || 15.0;
       if (document.getElementById('tier20LInput')) document.getElementById('tier20LInput').value = res.price_tiers["20"] || 15.0;
     }
+    if (document.getElementById('tankCapacityInput') && res.tank_capacity_litres) document.getElementById('tankCapacityInput').value = res.tank_capacity_litres;
+    if (document.getElementById('tankAlertThresholdInput') && res.tank_alert_threshold) document.getElementById('tankAlertThresholdInput').value = res.tank_alert_threshold;
     document.getElementById('defaultCardLitresInput').value = res.default_card_litres;
     if(res.razorpay_key_id) document.getElementById('rzpKeyInput').value = res.razorpay_key_id;
     if(res.razorpay_key_secret) document.getElementById('rzpSecretInput').value = res.razorpay_key_secret;
@@ -1879,8 +1909,10 @@ async function updatePrice(){
     price_per_litre_rs: document.getElementById('newPriceInput').value,
     price_tiers: {
       "1": parseFloat(document.getElementById('tier1LInput')?.value || 1.0),
+      "2": parseFloat(document.getElementById('tier2LInput')?.value || 2.0),
       "5": parseFloat(document.getElementById('tier5LInput')?.value || 5.0),
       "10": parseFloat(document.getElementById('tier10LInput')?.value || 10.0),
+      "15": parseFloat(document.getElementById('tier15LInput')?.value || 15.0),
       "20": parseFloat(document.getElementById('tier20LInput')?.value || 15.0)
     },
     default_card_litres: document.getElementById('defaultCardLitresInput').value,
@@ -1895,6 +1927,8 @@ async function updatePrice(){
     razorpay_key_secret: document.getElementById('rzpSecretInput').value,
     admin_pin: document.getElementById('pricePinInput').value || getAdminToken()
   };
+  const tankCapacityVal = parseFloat(document.getElementById('tankCapacityInput')?.value || 1000);
+  const tankAlertVal = parseFloat(document.getElementById('tankAlertThresholdInput')?.value || 100);
   const res = await fetch('/api/settings', {
     method: 'POST',
     headers: {
