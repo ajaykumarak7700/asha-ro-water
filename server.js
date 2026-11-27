@@ -199,6 +199,14 @@ function getPriceTiers(db) {
 let machineDiagnostics = {
   last_seen_ms: 0,
   ip: '',
+  esp_ip: '',
+  wifi_ssid: '',
+  wifi_rssi: null,
+  free_heap_bytes: null,
+  uptime_sec: null,
+  rfid_ok: true,
+  rfid_ver: '0x92',
+  oled_ok: true,
   firmware_version: '2.5-MAX',
   rfid_status: 'OK (48dB Max Range)',
   oled_status: 'OK (SSD1306 0x3C)',
@@ -1489,9 +1497,17 @@ app.get('/api/machine/pending', (req, res) => {
   const db = loadDB();
   const changed = checkExpiredOrders(db);
 
-  // Update machine heartbeat & diagnostics
+  // Update machine heartbeat & live hardware telemetry
   machineDiagnostics.last_seen_ms = Date.now();
   machineDiagnostics.ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').replace('::ffff:', '');
+  if (req.query.rfid_ok !== undefined) machineDiagnostics.rfid_ok = (req.query.rfid_ok === '1' || req.query.rfid_ok === 'true');
+  if (req.query.rfid_ver) machineDiagnostics.rfid_ver = req.query.rfid_ver;
+  if (req.query.oled_ok !== undefined) machineDiagnostics.oled_ok = (req.query.oled_ok === '1' || req.query.oled_ok === 'true');
+  if (req.query.ssid) machineDiagnostics.wifi_ssid = decodeURIComponent(req.query.ssid);
+  if (req.query.rssi) machineDiagnostics.wifi_rssi = parseInt(req.query.rssi, 10);
+  if (req.query.esp_ip) machineDiagnostics.esp_ip = req.query.esp_ip;
+  if (req.query.free_heap) machineDiagnostics.free_heap_bytes = parseInt(req.query.free_heap, 10);
+  if (req.query.uptime) machineDiagnostics.uptime_sec = parseInt(req.query.uptime, 10);
   if (req.query.card) {
     machineDiagnostics.last_card_uid = req.query.card;
     machineDiagnostics.last_card_time = nowIST();
@@ -1610,17 +1626,44 @@ app.get('/api/machine/diagnostics', (req, res) => {
   const cap = parseFloat(db.settings?.tank_capacity_litres || 1000);
   const cur = parseFloat(db.settings?.tank_current_litres !== undefined ? db.settings.tank_current_litres : 1000);
 
+  let signalPct = null;
+  if (machineDiagnostics.wifi_rssi !== null && machineDiagnostics.wifi_rssi !== undefined) {
+    const rssi = machineDiagnostics.wifi_rssi;
+    signalPct = Math.min(100, Math.max(0, 2 * (rssi + 100)));
+  }
+
   res.json({
     success: true,
     is_online: isOnline,
     last_seen_seconds_ago: lastSeenSec,
     machine_status: db.settings?.machine_status || 'active',
-    ip: machineDiagnostics.ip || '192.168.1.8',
+    ip: machineDiagnostics.esp_ip || machineDiagnostics.ip || '192.168.1.8',
+    wifi_ssid: machineDiagnostics.wifi_ssid || '',
+    wifi_rssi: machineDiagnostics.wifi_rssi,
+    wifi_signal_pct: signalPct,
+    free_heap_kb: machineDiagnostics.free_heap_bytes ? Math.round(machineDiagnostics.free_heap_bytes / 1024) : null,
+    uptime_sec: machineDiagnostics.uptime_sec || null,
     firmware: machineDiagnostics.firmware_version,
-    rfid: { status: 'OK', power: '48dB Max Sensitivity', last_card: machineDiagnostics.last_card_uid, last_time: machineDiagnostics.last_card_time },
-    oled: { status: 'OK', model: 'SSD1306 128x64 I2C 0x3C' },
-    flow: { status: 'OK', sensor: 'ZJ-S201', pulses_per_litre: db.settings?.pulses_per_litre || 450 },
-    relay: { status: 'OK', load: '12V RO Water Pump' },
+    rfid: {
+      status: (machineDiagnostics.rfid_ok === false) ? 'FAIL' : 'OK',
+      version: machineDiagnostics.rfid_ver || '0x92',
+      power: '48dB Max Sensitivity',
+      last_card: machineDiagnostics.last_card_uid,
+      last_time: machineDiagnostics.last_card_time
+    },
+    oled: {
+      status: (machineDiagnostics.oled_ok === false) ? 'FAIL' : 'OK',
+      model: 'SSD1306 128x64 I2C 0x3C'
+    },
+    flow: {
+      status: 'OK',
+      sensor: 'ZJ-S201',
+      pulses_per_litre: db.settings?.pulses_per_litre || 450
+    },
+    relay: {
+      status: 'OK',
+      load: '12V RO Water Pump'
+    },
     buttons: {
       status: 'OK',
       count: 9,

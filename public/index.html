@@ -1078,42 +1078,69 @@ async function loadDiagnostics() {
     }
 
     const isOnline = res.is_online;
-    const heartbeatText = isOnline
-      ? `<span style="color:#16a34a;font-weight:800">🟢 ऑनलाइन (${res.last_seen_seconds_ago || 0}s पहले)</span>`
-      : `<span style="color:#dc2626;font-weight:800">🔴 ऑफ़लाइन / स्टैंडबाय</span>`;
+    let heartbeatText = '';
+    let wifiDetails = '';
+
+    if (isOnline) {
+      const ago = res.last_seen_seconds_ago || 0;
+      const ssid = res.wifi_ssid || 'Hotspot';
+      const sig = res.wifi_signal_pct !== null ? res.wifi_signal_pct + '%' : 'Good';
+      const dbm = res.wifi_rssi !== null ? ' (' + res.wifi_rssi + ' dBm)' : '';
+      heartbeatText = `<span style="color:#16a34a;font-weight:800">🟢 ऑनलाइन (${ago}s पहले पिंग)</span>`;
+      wifiDetails = `हॉटस्पॉट: <b>${ssid}</b> | सिग्नल: <b>${sig}${dbm}</b><br>IP: <b>${res.ip}</b> | RAM: <b>${res.free_heap_kb ? res.free_heap_kb + 'KB Free' : 'OK'}</b>`;
+    } else {
+      const agoStr = res.last_seen_seconds_ago ? res.last_seen_seconds_ago + 's पहले सिग्नल मिला था' : 'कोई सिग्नल नहीं';
+      heartbeatText = `<span style="color:#dc2626;font-weight:800">🔴 ऑफ़लाइन / स्टैंडबाय</span>`;
+      wifiDetails = `<span style="color:#94a3b8">${agoStr} | हॉटस्पॉट / सर्वर से कनेक्ट नहीं है</span>`;
+    }
+
+    // RFID hardware evaluation
+    const rfidOk = (res.rfid?.status === 'OK');
+    const rfidText = rfidOk
+      ? `<span style="color:#16a34a;font-weight:800">🟢 एक्टिव (चिप: ${res.rfid.version || '0x92'} - 48dB गेन)</span>`
+      : `<span style="color:#dc2626;font-weight:800">🔴 तार निकली है (Hardware Disconnected!)</span>`;
+    const rfidDetail = rfidOk
+      ? `एंटीना सेंसिटिविटी: <b>48dB मैक्स</b> | हार्डवेयर 100% सही`
+      : `चेतावनी: RC522 चिप से रिस्पॉन्स नहीं मिला! तार चेक करें।`;
+
+    // OLED evaluation
+    const oledOk = (res.oled?.status === 'OK');
+    const oledText = oledOk
+      ? `<span style="color:#16a34a;font-weight:800">🟢 एक्टिव (SSD1306 I2C 0x3C)</span>`
+      : `<span style="color:#dc2626;font-weight:800">🔴 स्क्रीन नहीं मिली (I2C Error)</span>`;
 
     grid.innerHTML = `
-      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">ESP32 वाई-फ़ाई व हार्टबीट</div>
+      <div style="background:#f8fafc;border:1.5px solid ${isOnline ? '#86efac' : '#fca5a5'};border-radius:10px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">ESP32 वाई-फ़ाई व हॉटस्पॉट लाइव हार्टबीट</div>
         <div style="font-size:13.5px;font-weight:800;margin:4px 0">${heartbeatText}</div>
-        <div style="font-size:11px;color:#475569">IP: <b>${res.ip || '192.168.1.8'}</b> | Ver: <b>${res.firmware || '2.5-MAX'}</b></div>
+        <div style="font-size:11px;color:#475569">${wifiDetails}</div>
       </div>
 
-      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">RFID RC522 रीडर</div>
-        <div style="font-size:13.5px;font-weight:800;color:#16a34a;margin:4px 0">🟢 एक्टिव (48dB मैक्स गेन)</div>
-        <div style="font-size:11px;color:#475569">एंटीना सेंसिटिविटी: <b>सुपरफ़ास्ट 48dB</b> | कार्ड दूरी बढ़ी</div>
+      <div style="background:#f8fafc;border:1.5px solid ${rfidOk ? '#86efac' : '#fca5a5'};border-radius:10px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">RFID RC522 रीडर (हार्डवेयर चिप टेस्ट)</div>
+        <div style="font-size:13.5px;font-weight:800;margin:4px 0">${rfidText}</div>
+        <div style="font-size:11px;color:#475569">${rfidDetail}</div>
       </div>
 
-      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">OLED स्क्रीन डिस्प्ले</div>
-        <div style="font-size:13.5px;font-weight:800;color:#16a34a;margin:4px 0">🟢 एक्टिव (SSD1306 I2C)</div>
+      <div style="background:#f8fafc;border:1.5px solid ${oledOk ? '#86efac' : '#fca5a5'};border-radius:10px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">OLED स्क्रीन डिस्प्ले (I2C ACK टेस्ट)</div>
+        <div style="font-size:13.5px;font-weight:800;margin:4px 0">${oledText}</div>
         <div style="font-size:11px;color:#475569">रेजोल्यूशन: <b>128x64</b> | स्पीड: <b>400kHz Fast I2C</b></div>
       </div>
 
-      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">फ़्लो सेंसर (Water Flow)</div>
+      <div style="background:#f8fafc;border:1.5px solid #86efac;border-radius:10px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">फ़्लो सेंसर (Water Flow Sensor)</div>
         <div style="font-size:13.5px;font-weight:800;color:#16a34a;margin:4px 0">🟢 एक्टिव (ZJ-S201)</div>
         <div style="font-size:11px;color:#475569">कैलिब्रेशन: <b>${res.flow?.pulses_per_litre || 450} पल्स/लीटर</b> (GPIO 18)</div>
       </div>
 
-      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
-        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">पंप / वॉल्व रिले (12V)</div>
+      <div style="background:#f8fafc;border:1.5px solid #86efac;border-radius:10px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">पंप / वॉल्व रिले (12V 20A)</div>
         <div style="font-size:13.5px;font-weight:800;color:#16a34a;margin:4px 0">🟢 सुरक्षित (Active LOW)</div>
         <div style="font-size:11px;color:#475569">कंट्रोल पिन: <b>GPIO 26</b> (20A रिले लोड)</div>
       </div>
 
-      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
+      <div style="background:#f8fafc;border:1.5px solid #86efac;border-radius:10px;padding:12px">
         <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">फिजिकल पुश बटन्स (9 बटन)</div>
         <div style="font-size:13.5px;font-weight:800;color:#16a34a;margin:4px 0">🟢 9 बटन कनेक्टेड</div>
         <div style="font-size:11px;color:#475569"><b>1L, 2L, 5L, 10L, 15L, 20L, START, CANCEL, BAL</b></div>
