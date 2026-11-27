@@ -259,7 +259,7 @@ function loadDiskDB() {
       wallets: {},
       transactions: [],
       price: { paise_per_litre: 100 },
-      settings: { default_card_litres: 20 },
+      settings: { },
       pending_orders: [],
       cashback_wallets: {}
     };
@@ -268,13 +268,13 @@ function loadDiskDB() {
   }
   try {
     const db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    if (!db.settings) db.settings = { default_card_litres: 20 };
+    if (!db.settings) db.settings = { };
     if (!db.pending_orders) db.pending_orders = [];
     if (!db.cashback_wallets) db.cashback_wallets = {};
     return db;
   } catch(e) {
     console.error('Error reading db.json:', e.message);
-    return { customers: [], wallets: {}, transactions: [], price: { paise_per_litre: 100 }, settings: { default_card_litres: 20 }, pending_orders: [], cashback_wallets: {} };
+    return { customers: [], wallets: {}, transactions: [], price: { paise_per_litre: 100 }, settings: { }, pending_orders: [], cashback_wallets: {} };
   }
 }
 
@@ -344,7 +344,7 @@ async function initDatabase() {
       const res = await pgPool.query("SELECT data FROM app_state WHERE key = 'asha_ro_water_db'");
       if (res.rows.length > 0 && res.rows[0].data && res.rows[0].data.customers) {
         const cloudDB = res.rows[0].data;
-        if (!cloudDB.settings) cloudDB.settings = { default_card_litres: 20 };
+        if (!cloudDB.settings) cloudDB.settings = { };
         if (!cloudDB.pending_orders) cloudDB.pending_orders = [];
         if (!cloudDB.cashback_wallets) cloudDB.cashback_wallets = {};
 
@@ -551,7 +551,7 @@ app.post('/api/admin/import-db', (req, res) => {
   if (!importData.wallets) importData.wallets = {};
   if (!importData.transactions) importData.transactions = [];
   if (!importData.price) importData.price = { paise_per_litre: 100 };
-  if (!importData.settings) importData.settings = { default_card_litres: 20 };
+  if (!importData.settings) importData.settings = { };
   if (!importData.pending_orders) importData.pending_orders = [];
   if (!importData.cashback_wallets) importData.cashback_wallets = {};
 
@@ -601,8 +601,7 @@ app.get('/api/card/:uid', async (req, res) => {
     cashback_enabled: db.settings.cashback_enabled !== false,
     cashback_litres: parseFloat(db.settings.cashback_litres || 20),
     cashback_rs: parseFloat(db.settings.cashback_rs !== undefined ? db.settings.cashback_rs : 1.0),
-    machine_status: db.settings.machine_status || 'active',
-    default_card_litres: (db.settings && db.settings.default_card_litres) ? db.settings.default_card_litres : 2
+    machine_status: db.settings.machine_status || 'active'
   });
 });
 
@@ -1930,12 +1929,9 @@ app.get('/api/machine/sync-cards', async (req, res) => {
   res.json({
     success: true,
     price_per_litre_rs: parseFloat((db.price.paise_per_litre / 100.0).toFixed(2)),
-    default_card_litres: parseFloat(db.settings.default_card_litres || 2),
     flow_stall_seconds: parseInt(db.settings.flow_stall_seconds || 6, 10),
     order_expiry_seconds: parseInt(db.settings.order_expiry_seconds || 90, 10),
     pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
-    dispense_mode: db.settings.dispense_mode || 'button', // 'button' or 'auto'
-    wait_button_seconds: parseInt(db.settings.wait_button_seconds || 60, 10),
     multi_quantity_enabled: db.settings.multi_quantity_enabled !== false,
     price_tiers: getPriceTiers(db),
     cards: cards

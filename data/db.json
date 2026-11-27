@@ -18,6 +18,7 @@
       "20": 15
     },
     "dispense_mode": "button",
+    "machine_status": "active",
     "auto_refund_upi": true,
     "cashback_litres": 20,
     "razorpay_key_id": "rzp_live_U42Ce8kw6IIhK9",
@@ -25,6 +26,7 @@
     "pulses_per_litre": 450,
     "flow_stall_seconds": 6,
     "default_card_litres": 1,
+    "tank_current_litres": 1000,
     "wait_button_seconds": 30,
     "order_expiry_seconds": 45,
     "tank_alert_threshold": 100,
@@ -66,6 +68,19 @@
     }
   ],
   "transactions": [
+    {
+      "id": "RZ_52nekwhk",
+      "note": "[CANCELLED - Water Not Dispensed] Razorpay UPI: ₹1 -> 1L Water",
+      "type": "DISPENSE",
+      "status": "CANCELLED",
+      "card_uid": "RAZORPAY_QR",
+      "created_at": "27/11/2026, 5:35:38 pm",
+      "customer_id": "RAZORPAY_BUYER",
+      "payment_ref": "pay_U5C3Bf52nekwhk",
+      "amount_paise": 100,
+      "customer_name": "Razorpay User",
+      "customer_phone": ""
+    },
     {
       "id": "RZ_PBh2fIw7",
       "note": "[CANCELLED - Water Not Dispensed] Razorpay UPI: ₹4 -> 4L Water",
@@ -620,6 +635,24 @@
       "refund_method": "RAZORPAY_UPI",
       "customer_phone": "",
       "failure_reason": "Customer Cancel Button Pressed",
+      "actual_dispensed_litres": 0
+    },
+    {
+      "id": "RZ_52nekwhk",
+      "litres": 1,
+      "status": "auto_refunded",
+      "amount_rs": 1,
+      "failed_at": "27/11/2026, 5:36:14 pm",
+      "refund_id": "rfnd_U5C3rK9YEvm2pn",
+      "created_at": "27/11/2026, 5:35:38 pm",
+      "payment_id": "pay_U5C3Bf52nekwhk",
+      "started_at": "27/11/2026, 5:35:38 pm",
+      "refunded_at": "27/11/2026, 5:36:16 pm",
+      "created_at_ms": 1795781138614,
+      "customer_name": "Razorpay User",
+      "refund_method": "RAZORPAY_UPI",
+      "customer_phone": "",
+      "failure_reason": "Jar Nahi Lagaya / Cancelled",
       "actual_dispensed_litres": 0
     }
   ],
