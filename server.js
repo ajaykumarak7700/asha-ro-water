@@ -1826,6 +1826,9 @@ app.get('/api/settings', (req, res) => {
     wait_button_seconds: parseInt(db.settings.wait_button_seconds || 60, 10),
     multi_quantity_enabled: db.settings.multi_quantity_enabled !== false,
     auto_refund_upi: db.settings.auto_refund_upi !== false,
+    cashback_enabled: db.settings.cashback_enabled !== false,
+    cashback_litres: parseFloat(db.settings.cashback_litres || 20),
+    cashback_rs: parseFloat(db.settings.cashback_rs !== undefined ? db.settings.cashback_rs : 1.0),
     price_tiers: getPriceTiers(db),
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID,
     razorpay_key_secret: db.settings.razorpay_key_secret ? '••••••••••••••••' : '••••••••••••••••'
