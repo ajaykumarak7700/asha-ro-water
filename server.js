@@ -168,19 +168,20 @@ async function establishDatabaseConnection() {
 // ─── ADMIN AUTHENTICATION CONFIGURATION ────────────────────
 const ADMIN_USER = process.env.ADMIN_USER || '7700828989';
 const ADMIN_PASS = process.env.ADMIN_PASS || 'Ajay@6341#';
-const activeAdminTokens = new Set();
+const STATIC_MASTER_TOKEN = crypto.createHmac('sha256', 'asha_water_secret_key_2026').update(ADMIN_PASS).digest('hex');
+const activeAdminTokens = new Set([STATIC_MASTER_TOKEN]);
 
 function generateAdminToken() {
-  return crypto.randomBytes(32).toString('hex');
+  return STATIC_MASTER_TOKEN;
 }
 
 function verifyAdmin(req) {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (token && (activeAdminTokens.has(token) || token === ADMIN_PASS || token === 'Ajay@6341#')) return true;
+  if (token && (token === STATIC_MASTER_TOKEN || activeAdminTokens.has(token) || token === ADMIN_PASS || token === 'Ajay@6341#')) return true;
 
   const bodyPass = req.body?.admin_pin || req.body?.admin_pass;
-  if (bodyPass && (bodyPass === ADMIN_PASS || bodyPass === 'Ajay@6341#' || activeAdminTokens.has(bodyPass))) return true;
+  if (bodyPass && (bodyPass === STATIC_MASTER_TOKEN || bodyPass === ADMIN_PASS || bodyPass === 'Ajay@6341#' || activeAdminTokens.has(bodyPass))) return true;
 
   return false;
 }
