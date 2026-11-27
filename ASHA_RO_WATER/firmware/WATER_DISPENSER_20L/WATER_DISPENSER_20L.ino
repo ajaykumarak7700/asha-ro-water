@@ -178,8 +178,7 @@ bool waitForStartButton(String promptTitle, float litresToDispense) {
     return true; // Auto mode: start immediately
   }
 
-  Serial.println("
-⏳ WAITING FOR START BUTTON...");
+  Serial.println("[START_BTN] Waiting for start button...");
   unsigned long startWaitTime = millis();
   unsigned long lastBlinkTime = 0;
   bool ledState = false;
@@ -273,8 +272,7 @@ float selectCardQuantity(String custName, float balanceRs) {
     return defaultCardLitres;
   }
 
-  Serial.println("
-🔘 SELECT QUANTITY: 1L, 5L, 10L, 20L");
+  Serial.println("[QTY] Select quantity: 1L, 5L, 10L, 20L");
   unsigned long startWait = millis();
 
   while (millis() - startWait < 8000) {
@@ -374,8 +372,7 @@ float dispenseWater(String customerName, float litresToDispense) {
   flowPulseCount = 0;
   unsigned long targetPulses = (unsigned long)(litresToDispense * pulsesPerLitre);
 
-  Serial.println("
->>> STARTING WATER DISPENSING <<<");
+  Serial.println(">>> STARTING WATER DISPENSING <<<");
   beep(2, 80, 1500);
 
   // Turn Motor ON
@@ -518,8 +515,7 @@ void checkPendingQROrders() {
       String buyerName  = doc["customer_name"].as<String>();
       float amtRs       = doc["amount_rs"] | 0.0;
 
-      Serial.println("
-🎉 QR PAYMENT RECEIVED!");
+      Serial.println("[QR] Payment received!");
       showScreen("QR PAYMENT SUCCESS", "User: " + buyerName, "Amount: Rs." + String(amtRs, 1), "Litres: " + String(orderLitres, 1) + "L");
       beep(2, 150, 1600);
       delay(1200);
@@ -680,8 +676,7 @@ void syncCardsAndOfflineQueue() {
 // 💳 PROCESS CARD SCAN (Instant local flash check + Graceful online verify)
 // =================================================================
 void handleCardScanned(String uid) {
-  Serial.print("
-⚡ CARD DETECTED: "); Serial.println(uid);
+  Serial.print("[CARD] Detected: "); Serial.println(uid);
 
   String uidClean = uid;
   uidClean.replace(" ", "");
@@ -842,8 +837,7 @@ void handleCardScanned(String uid) {
 void setup() {
   Serial.begin(115200);
   delay(200);
-  Serial.println("
-=== ASHA RO WATER SYSTEM STARTING ===");
+  Serial.println("=== ASHA RO WATER SYSTEM STARTING ===");
 
   // 0. Preferences
   prefs.begin("asha_ro", false);
