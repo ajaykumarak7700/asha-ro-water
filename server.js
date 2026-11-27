@@ -1339,6 +1339,7 @@ async function triggerRazorpayRefund(paymentId, amountPaise, reason) {
   try {
     const refund = await razorpay.payments.refund(paymentId, {
       amount: amountPaise,
+      speed: 'optimum',
       notes: { reason: reason || 'Water ATM Auto-Refund' }
     });
     console.log(`💳 Razorpay Auto-Refund SUCCESS! Refund ID: ${refund.id} for ₹${amountPaise/100}`);
