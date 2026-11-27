@@ -799,8 +799,8 @@ app.post('/api/dispense', (req, res) => {
     payment_ref: txnId,
     created_at: nowIST()
   });
+  deductTankWater(db, litres);
   saveDB(db);
-
   console.log(`💧 Dispensed ${litres}L to ${customer.name}. New Balance: Rs.${(db.wallets[customer.id]/100).toFixed(2)}`);
 
   res.json({
@@ -1983,6 +1983,7 @@ app.post('/api/machine/offline-sync', (req, res) => {
       payment_ref: txnId,
       created_at: nowIST()
     });
+    deductTankWater(db, litres);
     synced++;
     console.log(`📶 Offline Sync processed: ${custName} -> ${litres}L (-₹${(costPaise/100).toFixed(2)})`);
   }

@@ -188,8 +188,7 @@ input:focus,select:focus{border-color:var(--blue)}
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <span id="tankStatusBadge" style="background:#16a34a;color:#fff;font-size:12px;font-weight:800;padding:4px 12px;border-radius:20px">100% फुल</span>
-            <button class="btn btn-success btn-sm" onclick="quickRefillTank(true)" style="font-weight:700">🔄 टंकी 100% फुल करें</button>
-            <button class="btn btn-light btn-sm" onclick="promptSetTankLitres()" style="font-weight:700">✏️ कस्टम लीटर</button>
+            <button class="btn btn-primary btn-sm" onclick="promptSetTankLitres()" style="font-weight:700">✏️ टंकी में पानी भरें (कस्टम लीटर)</button>
           </div>
         </div>
         <div class="card-body" style="padding:16px">
@@ -994,8 +993,24 @@ async function loadTankStatus() {
     }
 
     const alertEl = document.getElementById('tankLowAlert');
+    const thresh = res.tank_alert_threshold || 100;
+    const isLow = (res.status === 'low' || res.status === 'empty' || cur <= thresh);
     if (alertEl) {
-      alertEl.style.display = (res.status === 'low' || res.status === 'empty') ? 'block' : 'none';
+      if (isLow) {
+        alertEl.style.display = 'block';
+        alertEl.innerHTML = '⚠️ <b>चेतावनी: टंकी में पानी कम हो गया है (' + cur + 'L बचा है)!</b> अलर्ट लिमिट: ' + thresh + 'L | कृपया टंकी में पानी भरें।';
+      } else {
+        alertEl.style.display = 'none';
+      }
+    }
+
+    if (isLow && !window._hasAlertedLowWater) {
+      window._hasAlertedLowWater = true;
+      setTimeout(() => {
+        alert('⚠️ कम पानी अलर्ट (Low Water Alert)!\n\nवाटर एटीएम टंकी में केवल ' + cur + ' Litres पानी बचा है।\n(आपने अलर्ट लिमिट ' + thresh + 'L सेट की है)\n\nकृपया टंकी को तुरंत रीफिल करें!');
+      }, 500);
+    } else if (!isLow) {
+      window._hasAlertedLowWater = false;
     }
   } catch(e) {
     console.error('loadTankStatus error:', e);

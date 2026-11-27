@@ -875,10 +875,12 @@ void handleCardScanned(String uid, float preselectedLitres) {
     showScreen("CARD SCAN HUA", "UID: " + uidClean, "Server pe jaanch...", "Please wait...");
   }
 
-  bool onlineSuccess = false;
-  float serverBalRs = localBal;
+  bool onlineSuccess = (WiFi.status() == WL_CONNECTED);
+  float effectiveBal = localBal;
 
-  if (WiFi.status() == WL_CONNECTED) {
+  // ⚡ SUPERFAST: If card is new/unknown locally, query server. If known, respond in 0ms!
+  if (!isKnownLocally && WiFi.status() == WL_CONNECTED) {
+    showScreen("CARD SCAN HUA", "UID: " + uidClean, "Server pe jaanch...", "Please wait...");
     HTTPClient http;
     beginHttp(http, "/api/card/" + uidClean);
     http.setTimeout(1800);
@@ -890,19 +892,19 @@ void handleCardScanned(String uid, float preselectedLitres) {
 
       JsonDocument doc;
       if (!deserializeJson(doc, payload) && doc["success"] == true) {
-        onlineSuccess = true;
         custName = doc["data"]["name"].as<String>();
         String status = doc["data"]["status"] | "active";
         isActive = (status != "blocked");
         long balPaise = doc["data"]["balance_paise"] | 0;
-        serverBalRs = (float)balPaise / 100.0;
-        localBal = serverBalRs;
+        effectiveBal = (float)balPaise / 100.0;
+        localBal = effectiveBal;
 
         prefs.putString(nKey.c_str(), custName);
         prefs.putFloat(("b_" + uidClean).c_str(), localBal);
         prefs.putBool(("k_" + uidClean).c_str(), isActive);
+        isKnownLocally = true;
       }
-    } else if (httpCode == 404 && !isKnownLocally) {
+    } else if (httpCode == 404) {
       http.end();
       showScreen("UNREGISTERED CARD", "UID: " + uidClean, "Admin me Card jodein", "");
       beep(3, 120, 700);
@@ -910,11 +912,10 @@ void handleCardScanned(String uid, float preselectedLitres) {
       return;
     } else {
       http.end();
-      Serial.println("⚠️ Server unreachable, falling back to local flash memory!");
     }
   }
 
-  if (!isKnownLocally && !onlineSuccess) {
+  if (!isKnownLocally) {
     showScreen("OFFLINE: ANJAAN CARD", "Online WiFi me", "Ek bar tap karein", "");
     beep(2, 150, 700);
     delay(2000);
@@ -929,13 +930,40 @@ void handleCardScanned(String uid, float preselectedLitres) {
   }
 
   if (tankWaterRemaining <= 2.0) {
-    showScreen("TANKI KHALI HAI!", "Pani Uplabdh Nahi", "Bal: Rs." + String(localBal, 1), "Pls Refill Tank");
+    showScreen("TANKI KHALI HAI!", "Pani Uplabdh Nahi", "Bal: Rs." + String(effectiveBal, 1), "Pls Refill Tank");
     beep(3, 200, 600);
     delay(2500);
     return;
   }
 
-  float effectiveBal = onlineSuccess ? serverBalRs : localBal;
+  // 🛑 ZERO / INSUFFICIENT BALANCE CHECK (Direct Show & Titik Exit without asking for Litres!)
+  if (effectiveBal < price1L) {
+    beep(3, 80, 1000); // 3 titik sounds
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(4, 2);
+    display.println("BALANCE KHATAM HAI!");
+    display.drawFastHLine(0, 12, 128, SSD1306_WHITE);
+
+    display.setCursor(2, 16);
+    display.print("Nam: ");
+    display.println(custName.substring(0, 14));
+
+    display.setCursor(2, 28);
+    display.setTextSize(2);
+    display.print("Rs. ");
+    display.println(effectiveBal, 2);
+
+    display.setTextSize(1);
+    display.setCursor(2, 48);
+    display.println("Kripya Recharge Karein");
+    display.display();
+
+    delay(2200);
+    return;
+  }
+
   float litresToGive = preselectedLitres;
   if (litresToGive <= 0.0) {
     litresToGive = selectCardQuantity(custName, effectiveBal);
@@ -947,9 +975,9 @@ void handleCardScanned(String uid, float preselectedLitres) {
   float costRs = getQuantityCost(litresToGive);
 
   if (effectiveBal < costRs) {
+    beep(3, 80, 900); // 3 titik sounds
     showScreen("BALANCE KAM HAI!", custName, "Bal: Rs." + String(effectiveBal, 1), "Chahiye: Rs." + String(costRs, 1));
-    beep(3, 150, 800);
-    delay(2500);
+    delay(2200);
     return;
   }
 
@@ -1200,8 +1228,11 @@ void loop() {
     return;
   }
 
-  // ⚡ 1. RFID SENSING FIRST (Microsecond execution, zero delay)
-  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+  // ⚡ 1. RFID SENSING FIRST (Ultra-Sensitive Wakeup, Zero Delay)
+  byte bufferATQA[2];
+  byte bufferSize = sizeof(bufferATQA);
+  bool cardPresent = (rfid.PICC_WakeupA(bufferATQA, &bufferSize) == MFRC522::STATUS_OK) || rfid.PICC_IsNewCardPresent();
+  if (cardPresent && rfid.PICC_ReadCardSerial()) {
     String uid = "";
     for (byte i = 0; i < rfid.uid.size; i++) {
       if (i > 0) uid += " ";
@@ -1245,7 +1276,7 @@ void loop() {
   checkWiFiConnection();
 
   // 5. Fast QR Order Poll every 1.5 seconds (Lightning-Fast Response!)
-  if (now - lastQRPollTime >= 1500) {
+  if (now - lastQRPollTime >= 2500) {
     lastQRPollTime = now;
     checkPendingQROrders();
   }
