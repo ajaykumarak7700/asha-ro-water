@@ -1919,8 +1919,26 @@ app.get('/api/transactions', (req, res) => {
 });
 
 app.get('/api/transactions/:customer_id', (req, res) => {
-  const db   = loadDB();
-  const data = db.transactions.filter(t => t.customer_id === req.params.customer_id).slice(0, 50);
+  const db      = loadDB();
+  const rawId   = req.params.customer_id || '';
+  const cleanId = rawId.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const cust    = (db.customers || []).find(c => 
+    c.id === rawId || 
+    (c.card_uid && c.card_uid.replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanId) ||
+    (c.phone && c.phone.replace(/[^0-9]/g, '') === rawId.replace(/[^0-9]/g, ''))
+  );
+
+  const data = (db.transactions || []).filter(t => 
+    t.customer_id === rawId || 
+    t.id === rawId ||
+    t.payment_ref === rawId ||
+    (t.order_id && t.order_id === rawId) ||
+    (cust && (
+      t.customer_id === cust.id || 
+      (t.card_uid && t.card_uid.replace(/[^A-Za-z0-9]/g, '').toUpperCase() === (cust.card_uid || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase()) || 
+      (cust.phone && t.customer_phone === cust.phone)
+    ))
+  ).slice(0, 50);
   res.json({ success: true, data });
 });
 
