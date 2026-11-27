@@ -445,16 +445,42 @@ input:focus,select:focus{border-color:var(--blue)}
           </div>
 
           
-          <div class="form-row">
-            <div class="form-group">
-              <label>Standard Flat Rate (₹ per Litre)</label>
-              <input type="number" id="newPriceInput" step="0.25" min="0.25" placeholder="e.g. 1.00">
+          <!-- 🎁 SMART CARD CASHBACK SETTINGS -->
+          <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:14px;margin-bottom:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <div style="font-size:13px;font-weight:800;color:#166534;display:flex;align-items:center;gap:6px">
+                🎁 <span>स्मार्ट कार्ड कैशबैक ऑफर (Card Cashback Rewards)</span>
+              </div>
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:#166534;cursor:pointer">
+                <input type="checkbox" id="cashbackToggle" checked style="accent-color:#16a34a;width:16px;height:16px">
+                कैशबैक चालू रखें
+              </label>
             </div>
-            <div class="form-group">
-              <label>Card Scan Par Default Litres</label>
-              <input type="number" id="defaultCardLitresInput" step="1" min="1" placeholder="e.g. 20">
+            <div style="font-size:11.5px;color:#15803d;margin-bottom:12px">
+              कार्ड ग्राहक जब भी पानी निकालेगा, तो हर तय लीटर पर उसके कैशबैक वॉलेट में पैसे जमा होंगे:
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div class="form-group" style="margin:0">
+                <label style="font-size:11.5px;font-weight:700;color:#166534">हर कितने लीटर पानी पर (Litre)</label>
+                <div style="position:relative">
+                  <input type="number" id="cashbackLitresInput" min="1" step="1" class="form-control" style="font-weight:800;color:#166534;padding:8px 12px;border:1.5px solid #86efac;border-radius:8px" value="20">
+                  <span style="position:absolute;right:12px;top:9px;font-size:12px;color:#166534;font-weight:700">Litre</span>
+                </div>
+              </div>
+              <div class="form-group" style="margin:0">
+                <label style="font-size:11.5px;font-weight:700;color:#166534">कितना कैशबैक मिलेगा (₹)</label>
+                <div style="position:relative">
+                  <input type="number" id="cashbackRsInput" min="0" step="0.5" class="form-control" style="font-weight:800;color:#166534;padding:8px 12px;border:1.5px solid #86efac;border-radius:8px" value="1.0">
+                  <span style="position:absolute;right:12px;top:9px;font-size:12px;color:#166534;font-weight:700">₹ (रुपये)</span>
+                </div>
+              </div>
+            </div>
+            <div style="font-size:11px;color:#166534;margin-top:8px;font-weight:600">
+              💡 <b>उदाहरण:</b> हर 20 लीटर पर ₹1 (यानी 20L जार भरने पर ग्राहक को ₹1 कैशबैक मिलेगा जिसे वह पासबुक में क्लेम कर सकता है)।
             </div>
           </div>
+          <input type="hidden" id="newPriceInput" value="1.00">
+          <input type="hidden" id="defaultCardLitresInput" value="20">
 
           <!-- QUANTITY PRICING / SLAB OFFER BOX -->
           <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:14px;margin:14px 0">
@@ -980,28 +1006,35 @@ function renderTxnRows(list, targetId, short){
   if(!el)return;
   el.innerHTML = list.slice(0,short?8:100).map((t,i)=>{
     const isExpired = t.status === 'EXPIRED' || (t.note && t.note.includes('EXPIRED'));
-    const isRefund = t.type === 'REFUND';
-    const typeBadge = isExpired
-      ? `<span class="badge" style="background:#fee2e2;color:#991b1b">❌ EXPIRED</span>`
-      : (isRefund
-          ? `<span class="badge" style="background:#fef3c7;color:#b45309">💵 REFUND</span>`
+    const isRefund = t.type === 'REFUND' || t.status === 'AUTO_REFUNDED' || (t.note && (t.note.includes('AUTO-REFUNDED') || t.note.includes('रिफंड') || t.note.includes('REFUND')));
+    const isRecharge = t.type === 'RECHARGE' || t.type === 'CASHBACK';
+
+    const typeBadge = isRefund
+      ? `<span class="badge" style="background:#dbeafe;color:#1e40af;font-weight:800">💵 REFUND</span>`
+      : (isExpired
+          ? `<span class="badge" style="background:#fee2e2;color:#991b1b">❌ EXPIRED</span>`
           : `<span class="badge badge-${(t.type||'').toLowerCase()}">${t.type}</span>`);
 
+    const dateStr = t.created_at ? t.created_at.substring(0,16) : '-';
+    const amtFormatted = (Math.abs(t.amount_paise||0)/100).toFixed(2);
+
     return `
-    <tr>
+    <tr style="${isRefund ? 'background:#f0f9ff' : ''}">
       <td>${i+1}</td>
-      <td style="font-size:12px;color:var(--muted)">${t.created_at.substring(0,16)}</td>
-      <td>${t.customer_name||'-'}</td>
+      <td style="font-size:12px;color:var(--muted)">${dateStr}</td>
+      <td><b>${t.customer_name||'-'}</b></td>
       ${!short?`<td>${typeBadge}</td>`:''}
       ${short?`<td><code>${t.card_uid||'-'}</code></td><td>${typeBadge}</td>`:''}
-      <td style="font-weight:700;color:${t.type==='RECHARGE'?'var(--green)':(isRefund?'#d97706':'var(--red)')}">
-        ${t.type==='RECHARGE'?'+':'-'}₹${(Math.abs(t.amount_paise||0)/100).toFixed(2)}
+      <td style="font-weight:700;color:${isRefund ? '#2563eb' : (isRecharge ? 'var(--green)' : 'var(--red)')}">
+        ${isRecharge || isRefund ? '+' : '-'}₹${amtFormatted}
+        ${isRefund ? '<br><small style="font-size:10px;color:#2563eb;font-weight:700">24h Bank CR</small>' : ''}
       </td>
-      ${!short?`<td style="font-size:11px;color:var(--muted)">${t.payment_ref||t.note||'-'}</td>`:''}
-      ${short?`<td>-</td>`:''}
+      ${!short?`<td style="font-size:11.5px;color:${isRefund ? '#1e40af' : 'var(--muted)'}">${isRefund ? '<b>💳 ' + (t.note || '') + '</b>' : (t.payment_ref || t.note || '-')}</td>`:''}
+      ${short?`<td>${isRefund ? '<span style="color:#2563eb;font-weight:700;font-size:11px">24h CR</span>' : '-'}</td>`:''}
     </tr>`;
   }).join('') || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted)">Koi transaction nahi</td></tr>';
 }
+
 function filterTxns(q){
   const f = allTxns.filter(t=>(t.customer_name||'').toLowerCase().includes(q.toLowerCase())||(t.type||'').toLowerCase().includes(q.toLowerCase())||(t.card_uid||'').toLowerCase().includes(q.toLowerCase()));
   renderTxnRows(f,'txnBody',false);
@@ -1374,12 +1407,31 @@ async function checkExpiredOrdersAdmin() {
       const tbody = document.getElementById('expiredOrdersBody');
       tbody.innerHTML = res.orders.map(o => {
         const isDryRun = o.status === 'failed_no_water';
-        const statusBadge = isDryRun
-          ? `<span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700">🚨 टंकी खाली / मोटर एरर</span><br><small style="color:#b91c1c;font-weight:600">${o.actual_dispensed_litres || 0}L Nikla (Pump Stopped)</small>`
-          : `<span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700">❌ पानी नहीं निकला</span><br><small style="color:#dc2626;font-size:10.5px">Machine Offline Timeout</small>`;
+        const isRefunded = o.status === 'auto_refunded' || o.refund_id;
+        const isCancelled = o.status === 'cancelled_user';
+
+        let statusBadge = '';
+        if (isRefunded) {
+          statusBadge = `<span class="badge" style="background:#dbeafe;color:#1e40af;font-weight:700">💳 रिफंड जारी (Auto-Refunded)</span><br><small style="color:#2563eb;font-weight:600;font-size:11px">24h के अंदर बैंक में CR होगा<br><span style="font-family:monospace">Ref: ${o.refund_id || '-'}</span></small>`;
+        } else if (isDryRun) {
+          statusBadge = `<span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700">🚨 टंकी खाली / मोटर एरर</span><br><small style="color:#b91c1c;font-weight:600">${o.actual_dispensed_litres || 0}L Nikla (Pump Stopped)</small>`;
+        } else if (isCancelled) {
+          statusBadge = `<span class="badge" style="background:#fef3c7;color:#92400e;font-weight:700">🛑 ऑर्डर कैंसिल हुआ</span><br><small style="color:#b45309;font-size:10.5px">बटन टाइमआउट / रद्द</small>`;
+        } else {
+          statusBadge = `<span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700">❌ पानी नहीं निकला</span><br><small style="color:#dc2626;font-size:10.5px">Machine Offline Timeout</small>`;
+        }
+
+        const actionButtons = isRefunded ? `
+          <span style="color:#1e40af;font-weight:700;font-size:12px;background:#eff6ff;padding:5px 10px;border-radius:6px;border:1px solid #bfdbfe">✅ Auto-Refunded (24h CR)</span>
+          <button class="btn btn-light btn-sm" style="color:#64748b" onclick="handleResolveOrder('${o.id}', 'dismiss')" title="Dismiss / Clear">✕</button>
+        ` : `
+          <button class="btn btn-success btn-sm" style="font-weight:700;box-shadow:0 2px 4px rgba(5,122,85,0.2)" onclick="handleResolveOrder('${o.id}', 'cash_refund', ${o.amount_rs})">💵 Cash Refund Diya (₹${o.amount_rs})</button>
+          <button class="btn btn-primary btn-sm" style="font-weight:700" onclick="handleResolveOrder('${o.id}', 'retry_dispense', ${o.amount_rs}, ${o.litres})">🚰 Abhi Paani Nikalo (${o.litres}L)</button>
+          <button class="btn btn-light btn-sm" style="color:#64748b" onclick="handleResolveOrder('${o.id}', 'dismiss')" title="Dismiss / Clear">✕</button>
+        `;
 
         return `
-        <tr style="background:#fffaf0">
+        <tr style="background:${isRefunded ? '#f0f9ff' : '#fffaf0'}">
           <td style="font-size:12px;color:#64748b">${o.created_at ? o.created_at.substring(0, 16) : '-'}</td>
           <td>
             <b style="font-family:monospace;color:#1e3a5f">${o.id}</b>
@@ -1389,13 +1441,11 @@ async function checkExpiredOrdersAdmin() {
             <b style="color:#0f172a">${o.customer_name || 'Customer'}</b>
             ${o.customer_phone ? `<br><small style="color:#64748b">📞 ${o.customer_phone}</small>` : ''}
           </td>
-          <td><b style="color:#dc2626;font-size:15px">₹${o.amount_rs}</b></td>
+          <td><b style="color:${isRefunded ? '#2563eb' : '#dc2626'};font-size:15px">₹${o.amount_rs}</b></td>
           <td><b style="color:#0369a1">${o.litres}L</b></td>
           <td>${statusBadge}</td>
           <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            <button class="btn btn-success btn-sm" style="font-weight:700;box-shadow:0 2px 4px rgba(5,122,85,0.2)" onclick="handleResolveOrder('${o.id}', 'cash_refund', ${o.amount_rs})">💵 Cash Refund Diya (₹${o.amount_rs})</button>
-            <button class="btn btn-primary btn-sm" style="font-weight:700" onclick="handleResolveOrder('${o.id}', 'retry_dispense', ${o.amount_rs}, ${o.litres})">🚰 Abhi Paani Nikalo (${o.litres}L)</button>
-            <button class="btn btn-light btn-sm" style="color:#64748b" onclick="handleResolveOrder('${o.id}', 'dismiss')" title="Dismiss / Clear">✕</button>
+            ${actionButtons}
           </td>
         </tr>`;
       }).join('');
@@ -1751,7 +1801,24 @@ async function loadPrice(){
       document.getElementById('currentAutoRefund').textContent = isUpiOn ? 'चालू (Active)' : 'बंद (Off)';
       document.getElementById('currentAutoRefund').style.color = isUpiOn ? '#059669' : '#dc2626';
     }
-    document.getElementById('newPriceInput').value = res.price_per_litre_rs;
+    if(res.cashback_enabled !== undefined) {
+      document.getElementById('cashbackToggle').checked = res.cashback_enabled !== false;
+    }
+    if(res.cashback_litres) {
+      document.getElementById('cashbackLitresInput').value = res.cashback_litres;
+    }
+    if(res.cashback_rs !== undefined) {
+      document.getElementById('cashbackRsInput').value = res.cashback_rs;
+    }
+    const cbL = res.cashback_litres || 20;
+    const cbR = res.cashback_rs !== undefined ? res.cashback_rs : 1.0;
+    const isCbOn = res.cashback_enabled !== false;
+    const badgeEl = document.getElementById('currentCashbackBadge');
+    if (badgeEl) {
+      badgeEl.textContent = isCbOn ? `${cbL}L पर ₹${cbR}` : 'बंद (Off)';
+      badgeEl.style.color = isCbOn ? '#16a34a' : '#94a3b8';
+    }
+    if(document.getElementById('newPriceInput')) document.getElementById('newPriceInput').value = res.price_per_litre_rs;
     if (res.price_tiers) {
       if (document.getElementById('tier1LInput')) document.getElementById('tier1LInput').value = res.price_tiers["1"] || 1.0;
       if (document.getElementById('tier5LInput')) document.getElementById('tier5LInput').value = res.price_tiers["5"] || 5.0;

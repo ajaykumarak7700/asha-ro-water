@@ -364,7 +364,16 @@ async function initDatabase() {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+app.use(express.static(path.join(__dirname, 'public'), {
+  index: false,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+    }
+  }
+}));
 
 // ── Admin Login Endpoint (Server-Side Secure) ──
 app.post('/api/admin/login', (req, res) => {
@@ -2256,7 +2265,12 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'water.ht
 app.get('/water', (req, res) => res.sendFile(path.join(__dirname, 'public', 'water.html')));
 
 // ── Admin Management Panel ──
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/admin', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // ─── START ────────────────────────────────────────────────────
 initDatabase().then(() => {

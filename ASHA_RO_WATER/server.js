@@ -364,7 +364,16 @@ async function initDatabase() {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+app.use(express.static(path.join(__dirname, 'public'), {
+  index: false,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+    }
+  }
+}));
 
 // ── Admin Login Endpoint (Server-Side Secure) ──
 app.post('/api/admin/login', (req, res) => {
@@ -557,6 +566,9 @@ app.get('/api/card/:uid', async (req, res) => {
     data: { ...c, balance_paise: db.wallets[c.id] || 0 },
     paise_per_litre: db.price.paise_per_litre,
     price_tiers: getPriceTiers(db),
+    cashback_enabled: db.settings.cashback_enabled !== false,
+    cashback_litres: parseFloat(db.settings.cashback_litres || 20),
+    cashback_rs: parseFloat(db.settings.cashback_rs !== undefined ? db.settings.cashback_rs : 1.0),
     default_card_litres: (db.settings && db.settings.default_card_litres) ? db.settings.default_card_litres : 2
   });
 });
@@ -1339,6 +1351,7 @@ async function triggerRazorpayRefund(paymentId, amountPaise, reason) {
   try {
     const refund = await razorpay.payments.refund(paymentId, {
       amount: amountPaise,
+      speed: 'optimum',
       notes: { reason: reason || 'Water ATM Auto-Refund' }
     });
     console.log(`💳 Razorpay Auto-Refund SUCCESS! Refund ID: ${refund.id} for ₹${amountPaise/100}`);
@@ -1347,6 +1360,54 @@ async function triggerRazorpayRefund(paymentId, amountPaise, reason) {
     console.error(`❌ Razorpay Auto-Refund Error for ${paymentId}:`, err.message);
     return null;
   }
+}
+
+// ── HELPER: Record Auto-Refund in Database & Transaction Ledger ──
+function recordAutoRefundTransaction(db, order, ref, reason) {
+  if (!db || !order || !ref) return;
+  const amtPaise = Math.round((order.amount_rs || 0) * 100);
+  const amtRs = (amtPaise / 100).toFixed(2);
+  const refId = ref.id || ('rfnd_' + Date.now());
+  const refNote = `₹${amtRs} रिफंड जारी (Refund ID: ${refId}) — 24 घंटे के अंदर आपके बैंक खाते / UPI में क्रेडिट हो जाएगा।`;
+
+  order.status = 'auto_refunded';
+  order.refund_id = refId;
+  order.refunded_at = nowIST();
+  order.refund_method = 'RAZORPAY_UPI';
+  order.refund_note = '24 घंटे के अंदर बैंक खाते / UPI में क्रेडिट हो जाएगा';
+
+  // Find or insert refund transaction
+  let refTxn = (db.transactions || []).find(t => t.payment_ref === refId || t.id === 'RFND_' + refId);
+  if (!refTxn) {
+    refTxn = {
+      id: 'RFND_' + refId,
+      customer_id: order.customer_id || 'RAZORPAY_BUYER',
+      customer_name: order.customer_name || 'Customer',
+      customer_phone: order.customer_phone || '',
+      card_uid: order.card_uid || 'ONLINE_UPI',
+      type: 'REFUND',
+      status: 'AUTO_REFUNDED',
+      amount_paise: amtPaise,
+      note: refNote,
+      payment_ref: refId,
+      order_id: order.id,
+      created_at: nowIST()
+    };
+    db.transactions.unshift(refTxn);
+  }
+
+  // Update original order transaction
+  const origTxn = (db.transactions || []).find(t => t.id === order.id || (order.payment_id && t.payment_ref === order.payment_id));
+  if (origTxn) {
+    origTxn.status = 'AUTO_REFUNDED';
+    origTxn.refund_id = refId;
+    if (!origTxn.note.includes('[AUTO-REFUNDED]')) {
+      origTxn.note = `[AUTO-REFUNDED: 24H Bank Credit] ` + origTxn.note.replace(/\[CANCELLED[^\]]*\]\s*/g, '').replace(/\[TANK KHALI[^\]]*\]\s*/g, '').replace(/\[EXPIRED[^\]]*\]\s*/g, '');
+    }
+  }
+
+  saveDB(db);
+  console.log(`💳 Auto-Refund Transaction successfully recorded for Order ${order.id} (Refund ID: ${refId})`);
 }
 
 // ── HELPER: Check and mark pending orders as expired if machine was offline > order_expiry_seconds ──
@@ -1432,7 +1493,7 @@ app.get('/api/admin/expired-orders', (req, res) => {
   if (changed) saveDB(db);
 
   const expiredList = (db.pending_orders || [])
-    .filter(o => o.status === 'expired' || o.status === 'failed_no_water')
+    .filter(o => o.status === 'expired' || o.status === 'failed_no_water' || o.status === 'cancelled_user' || o.status === 'auto_refunded')
     .sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
 
   res.json({
@@ -1774,6 +1835,9 @@ app.get('/api/settings', (req, res) => {
     wait_button_seconds: parseInt(db.settings.wait_button_seconds || 60, 10),
     multi_quantity_enabled: db.settings.multi_quantity_enabled !== false,
     auto_refund_upi: db.settings.auto_refund_upi !== false,
+    cashback_enabled: db.settings.cashback_enabled !== false,
+    cashback_litres: parseFloat(db.settings.cashback_litres || 20),
+    cashback_rs: parseFloat(db.settings.cashback_rs !== undefined ? db.settings.cashback_rs : 1.0),
     price_tiers: getPriceTiers(db),
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID,
     razorpay_key_secret: db.settings.razorpay_key_secret ? '••••••••••••••••' : '••••••••••••••••'
@@ -1781,7 +1845,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', (req, res) => {
-  const { default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, pulses_per_litre, dispense_mode, wait_button_seconds, multi_quantity_enabled, auto_refund_upi, price_tiers } = req.body;
+  const { cashback_enabled, cashback_litres, cashback_rs, default_card_litres, price_per_litre_rs, razorpay_key_id, razorpay_key_secret, order_expiry_seconds, flow_stall_seconds, pulses_per_litre, dispense_mode, wait_button_seconds, multi_quantity_enabled, auto_refund_upi, price_tiers } = req.body;
   if (!verifyAdmin(req)) {
     return res.status(403).json({ success: false, message: '❌ Unauthorized! कृपया सही एडमिन पासवर्ड से लॉगिन करें।' });
   }
@@ -1870,8 +1934,26 @@ app.get('/api/transactions', (req, res) => {
 });
 
 app.get('/api/transactions/:customer_id', (req, res) => {
-  const db   = loadDB();
-  const data = db.transactions.filter(t => t.customer_id === req.params.customer_id).slice(0, 50);
+  const db      = loadDB();
+  const rawId   = req.params.customer_id || '';
+  const cleanId = rawId.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  const cust    = (db.customers || []).find(c => 
+    c.id === rawId || 
+    (c.card_uid && c.card_uid.replace(/[^A-Za-z0-9]/g, '').toUpperCase() === cleanId) ||
+    (c.phone && c.phone.replace(/[^0-9]/g, '') === rawId.replace(/[^0-9]/g, ''))
+  );
+
+  const data = (db.transactions || []).filter(t => 
+    t.customer_id === rawId || 
+    t.id === rawId ||
+    t.payment_ref === rawId ||
+    (t.order_id && t.order_id === rawId) ||
+    (cust && (
+      t.customer_id === cust.id || 
+      (t.card_uid && t.card_uid.replace(/[^A-Za-z0-9]/g, '').toUpperCase() === (cust.card_uid || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase()) || 
+      (cust.phone && t.customer_phone === cust.phone)
+    ))
+  ).slice(0, 50);
   res.json({ success: true, data });
 });
 
@@ -2069,7 +2151,9 @@ app.get('/api/pay-info/:customer_id', async (req, res) => {
       upi_qr_data: squareUpiQr || c.razorpay_qr_image || '',
       upi_intent: upiIntent,
       razorpay_qr_image: c.razorpay_qr_image || '',
-      price_per_litre: ((db.price.paise_per_litre || 100) / 100).toFixed(2)
+      price_per_litre: ((db.price.paise_per_litre || 100) / 100).toFixed(2),
+      cashback_litres: db.settings?.cashback_litres || 20,
+      cashback_reward_rs: db.settings?.cashback_rs !== undefined ? db.settings.cashback_rs : 1.0
     });
   } catch(err) {
     res.status(500).json({ success: false, message: err.message });
@@ -2181,7 +2265,12 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'water.ht
 app.get('/water', (req, res) => res.sendFile(path.join(__dirname, 'public', 'water.html')));
 
 // ── Admin Management Panel ──
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/admin', (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // ─── START ────────────────────────────────────────────────────
 initDatabase().then(() => {

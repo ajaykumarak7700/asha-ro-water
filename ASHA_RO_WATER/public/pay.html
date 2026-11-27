@@ -53,6 +53,7 @@ body{background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 50%,#0284c7 100%);min-
 .type-recharge{background:#def7ec;color:#03543f}
 .type-dispense{background:#fee2e2;color:#991b1b}
 .type-cashback{background:#fef3c7;color:#92400e}
+.type-refund{background:#dbeafe;color:#1e40af;font-weight:800;border:1px solid #93c5fd}
 .alert{padding:11px 14px;border-radius:10px;font-size:13px;font-weight:700;margin-bottom:14px;text-align:center}
 .alert-success{background:#def7ec;color:#03543f;border:1px solid #bbf7d0}
 .alert-error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca}
@@ -81,9 +82,13 @@ async function loadPage(){
 
   if (!customerId) {
     mainBody.innerHTML = `
-      <div style="text-align:center;padding:30px 10px">
-        <h3 style="color:#0f172a;margin-bottom:8px">🚰 ASHA RO WATER</h3>
-        <p style="font-size:13px;color:#64748b;margin-bottom:16px">Apne RFID card ka QR code scan karein.</p>
+      <div style="text-align:center;padding:26px 12px">
+        <h3 style="color:#0f172a;margin-bottom:6px;font-size:20px;font-weight:800">🚰 ASHA RO WATER</h3>
+        <p style="font-size:13px;color:#64748b;margin-bottom:18px">Apna Mobile No, Card UID ya Payment/Order ID dalein aur Passbook dekhein:</p>
+        <div style="display:flex;gap:8px;max-width:340px;margin:0 auto 16px">
+          <input type="text" id="manualLookupInput" placeholder="Mobile / Card UID / Order ID" style="flex:1;padding:11px 14px;border:1.5px solid #cbd5e1;border-radius:12px;font-size:13px;outline:none" onkeyup="if(event.key==='Enter')handleManualLookup()">
+          <button onclick="handleManualLookup()" style="background:#0284c7;color:#fff;border:none;border-radius:12px;padding:0 18px;font-weight:700;font-size:13px;cursor:pointer">खोजें</button>
+        </div>
         <div style="font-size:12px;color:#0284c7;font-weight:700">Banwariya • Smart Water ATM</div>
       </div>`;
     return;
@@ -142,7 +147,7 @@ async function loadPage(){
       <div class="wallet-box cashback">
         <div class="w-title">🎁 Cashback</div>
         <div class="w-amount" id="cashbackTxt">₹${res.cashback_rs || '0.00'}</div>
-        <div class="w-sub">Har 20L Par ₹1 Cashback</div>
+        <div class="w-sub" id="cashbackSubTxt">Har ${res.cashback_litres || 20}L Par ₹${res.cashback_reward_rs || 1} Cashback</div>
         <button class="claim-btn" id="claimBtn" ${cbVal <= 0 ? 'disabled' : ''} onclick="claimCashback()">
           ${cbVal > 0 ? `🎁 Claim ₹${cbVal.toFixed(0)}` : 'Claim Karein'}
         </button>
@@ -211,7 +216,7 @@ async function loadHistory(){
   if(!histEl || !customerId) return;
 
   const res = await fetch(`/api/transactions/${customerId}`).then(r=>r.json()).catch(()=>null);
-  const items = (res && res.data) ? res.data.slice(0, 8) : [];
+  const items = (res && res.data) ? res.data.slice(0, 10) : [];
 
   if(!items.length){
     histEl.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:12px;font-size:12px">Abhi koi transaction nahi hai</div>';
@@ -219,22 +224,40 @@ async function loadHistory(){
   }
 
   histEl.innerHTML = items.map(t=>{
-    const isCredit = t.type === 'RECHARGE' || t.type === 'CASHBACK';
-    const typeClass = t.type === 'RECHARGE' ? 'type-recharge' : (t.type === 'CASHBACK' ? 'type-cashback' : 'type-dispense');
-    const amtStr = ((t.amount_paise || 0) / 100).toFixed(2);
+    const isRefund = t.type === 'REFUND' || t.status === 'AUTO_REFUNDED' || (t.note && (t.note.includes('AUTO-REFUNDED') || t.note.includes('रिफंड') || t.note.includes('REFUND')));
+    const isCredit = t.type === 'RECHARGE' || t.type === 'CASHBACK' || isRefund;
+    const typeClass = isRefund ? 'type-refund' : (t.type === 'RECHARGE' ? 'type-recharge' : (t.type === 'CASHBACK' ? 'type-cashback' : 'type-dispense'));
+    const typeLabel = isRefund ? 'REFUND' : t.type;
+    const amtStr = ((Math.abs(t.amount_paise) || 0) / 100).toFixed(2);
     const dateStr = (t.created_at || '').substring(0, 16);
+
+    const refundNotice = isRefund ? `
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:7px 10px;margin-top:6px;font-size:11.5px;color:#1e40af;font-weight:600;line-height:1.4">
+        💳 <strong>रिफंड प्रोसेस हो चुका है</strong><br>
+        24 घंटे के अंदर आपके बैंक खाते / UPI में क्रेडिट हो जाएगा।<br>
+        <span style="font-size:10.5px;color:#3b82f6;font-family:monospace">Ref ID: ${t.payment_ref || t.id}</span>
+      </div>
+    ` : '';
+
     return `
-      <div class="txn-item">
-        <div>
-          <span class="txn-type ${typeClass}">${t.type}</span>
-          <div style="font-size:11px;color:#64748b;margin-top:2px">${t.note || ''} • <span style="color:#94a3b8">${dateStr}</span></div>
+      <div class="txn-item" style="${isRefund ? 'background:#f8fafc;padding:10px;border-radius:10px;margin-bottom:8px;border:1px solid #e2e8f0;' : ''}">
+        <div style="flex:1">
+          <span class="txn-type ${typeClass}">${typeLabel}</span>
+          <div style="font-size:11px;color:#64748b;margin-top:4px">${t.note || ''} • <span style="color:#94a3b8">${dateStr}</span></div>
+          ${refundNotice}
         </div>
-        <b style="color:${isCredit ? '#15803d' : '#b91c1c'};font-size:14px">
+        <b style="color:${isRefund ? '#2563eb' : (isCredit ? '#15803d' : '#b91c1c')};font-size:14px;white-space:nowrap;margin-left:8px">
           ${isCredit ? '+' : '-'}₹${amtStr}
         </b>
       </div>
     `;
   }).join('');
+}
+
+function handleManualLookup(){
+  const val = (document.getElementById('manualLookupInput')?.value || '').trim();
+  if(!val){ alert('Kripya Mobile No, Card UID ya Order ID dalein'); return; }
+  window.location.href = '/pay/' + encodeURIComponent(val);
 }
 
 function showAlert(msg, type){
