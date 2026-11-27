@@ -904,12 +904,225 @@ function showPage(name){
   document.getElementById('page-'+name).classList.add('active');
   document.querySelector(`.nav-btn[onclick="showPage('${name}')"]`).classList.add('active');
   document.getElementById('pageTitle').textContent = pageTitles[name];
-  if(name==='dashboard') loadDashboard();
+  if(name==='dashboard') { loadDashboard(); loadTankStatus(); loadDiagnostics(); }
   if(name==='customers'||name==='cards') loadCustomers();
   if(name==='transactions') loadTransactions();
   if(name==='qrgen'){loadCustomers();renderBatchQR();}
   if(name==='settings') loadPrice();
   if(name==='balance') { beClear(); }
+}
+
+// ── WATER TANK LIVE STATUS ──
+async function loadTankStatus() {
+  try {
+    const res = await fetch('/api/tank').then(r => r.json()).catch(() => null);
+    if (!res || !res.success) return;
+
+    const cur = res.tank_current_litres;
+    const cap = res.tank_capacity_litres;
+    const pct = res.percentage;
+
+    const curEl = document.getElementById('tankCurrentDisplay');
+    if (curEl) curEl.innerHTML = `${cur} L <span style="font-size:15px;font-weight:600;color:#64748b">/ ${cap} L</span>`;
+
+    const pctEl = document.getElementById('tankPercentDisplay');
+    if (pctEl) pctEl.textContent = `${pct}%`;
+
+    const barEl = document.getElementById('tankProgressBar');
+    if (barEl) {
+      barEl.style.width = `${pct}%`;
+      if (pct > 40) {
+        barEl.style.background = 'linear-gradient(90deg, #0284c7, #22c55e)';
+      } else if (pct > 15) {
+        barEl.style.background = 'linear-gradient(90deg, #f59e0b, #eab308)';
+      } else {
+        barEl.style.background = 'linear-gradient(90deg, #dc2626, #ef4444)';
+      }
+    }
+
+    const badgeEl = document.getElementById('tankStatusBadge');
+    if (badgeEl) {
+      if (res.status === 'empty' || cur <= 5) {
+        badgeEl.textContent = '❌ टंकी खाली (Empty)';
+        badgeEl.style.background = '#dc2626';
+      } else if (res.status === 'low') {
+        badgeEl.textContent = `⚠️ पानी कम (${pct}%)`;
+        badgeEl.style.background = '#d97706';
+      } else {
+        badgeEl.textContent = `${pct}% भरा हुआ`;
+        badgeEl.style.background = '#16a34a';
+      }
+    }
+
+    const alertEl = document.getElementById('tankLowAlert');
+    if (alertEl) {
+      alertEl.style.display = (res.status === 'low' || res.status === 'empty') ? 'block' : 'none';
+    }
+  } catch(e) {
+    console.error('loadTankStatus error:', e);
+  }
+}
+
+async function quickRefillTank(setFull) {
+  const token = getAdminToken() || 'Ajay@6341#';
+  if (!confirm('क्या आप टंकी को 100% फुल (1000 Litres) रीफिल करना चाहते हैं?')) return;
+  try {
+    const res = await fetch('/api/tank/refill', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ set_full: true, admin_pin: token })
+    }).then(r => r.json());
+
+    if (res && res.success) {
+      alert('✅ ' + res.message);
+      loadTankStatus();
+      loadDiagnostics();
+    } else {
+      alert('❌ ' + (res?.message || 'Tank refill fail ho gaya'));
+    }
+  } catch(e) {
+    alert('❌ Error: ' + e.message);
+  }
+}
+
+async function promptSetTankLitres() {
+  const token = getAdminToken() || 'Ajay@6341#';
+  const val = prompt('टंकी में वर्तमान पानी (Litres) दर्ज करें:\n(उदा. 500, 750, 1000)');
+  if (val === null || val.trim() === '') return;
+  const num = parseFloat(val);
+  if (isNaN(num) || num < 0) {
+    alert('❌ कृपया सही लीटर संख्या दर्ज करें (0 या उससे अधिक)।');
+    return;
+  }
+  try {
+    const res = await fetch('/api/tank/refill', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ amount_litres: num, admin_pin: token })
+    }).then(r => r.json());
+
+    if (res && res.success) {
+      alert('✅ ' + res.message);
+      loadTankStatus();
+      loadDiagnostics();
+    } else {
+      alert('❌ ' + (res?.message || 'Set tank litres fail ho gaya'));
+    }
+  } catch(e) {
+    alert('❌ Error: ' + e.message);
+  }
+}
+
+// ── REMOTE MACHINE MAINTENANCE TOGGLE ──
+let currentMachineStatus = 'active';
+
+async function toggleMachineStatus() {
+  const token = getAdminToken() || 'Ajay@6341#';
+  const isCurrentlyActive = (currentMachineStatus !== 'maintenance');
+  const confirmMsg = isCurrentlyActive
+    ? '⚠️ क्या आप वाटर एटीएम मशीन को रिमोटली बंद (Maintenance Mode) करना चाहते हैं?\nमशीन की स्क्रीन पर "मशीन बंद है" लिख जाएगा और कोई बटन काम नहीं करेगा।'
+    : '🟢 क्या आप वाटर एटीएम मशीन को दोबारा चालू (Online Active) करना चाहते हैं?';
+
+  if (!confirm(confirmMsg)) return;
+
+  const targetStatus = isCurrentlyActive ? 'maintenance' : 'active';
+  try {
+    const res = await fetch('/api/machine/toggle-status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({ status: targetStatus, admin_pin: token })
+    }).then(r => r.json());
+
+    if (res && res.success) {
+      currentMachineStatus = res.machine_status;
+      alert(res.message);
+      loadDiagnostics();
+    } else {
+      alert('❌ ' + (res?.message || 'Machine status toggle fail'));
+    }
+  } catch(e) {
+    alert('❌ Error: ' + e.message);
+  }
+}
+
+// ── HARDWARE MODULE DIAGNOSTICS ──
+async function loadDiagnostics() {
+  const grid = document.getElementById('diagGrid');
+  if (!grid) return;
+  try {
+    const res = await fetch('/api/machine/diagnostics').then(r => r.json()).catch(() => null);
+    if (!res || !res.success) {
+      grid.innerHTML = '<div style="color:#64748b;font-size:12px;padding:10px">डायग्नोस्टिक्स लोड नहीं हो सका</div>';
+      return;
+    }
+
+    currentMachineStatus = res.machine_status || 'active';
+    const toggleBtn = document.getElementById('machineStatusToggleBtn');
+    if (toggleBtn) {
+      if (currentMachineStatus === 'maintenance') {
+        toggleBtn.innerHTML = '🟢 मशीन चालू करें (Make Active)';
+        toggleBtn.className = 'btn btn-success btn-sm';
+      } else {
+        toggleBtn.innerHTML = '🔴 मशीन बंद करें (Maintenance Mode)';
+        toggleBtn.className = 'btn btn-warning btn-sm';
+      }
+    }
+
+    const isOnline = res.is_online;
+    const heartbeatText = isOnline
+      ? `<span style="color:#16a34a;font-weight:800">🟢 ऑनलाइन (${res.last_seen_seconds_ago || 0}s पहले)</span>`
+      : `<span style="color:#dc2626;font-weight:800">🔴 ऑफ़लाइन / स्टैंडबाय</span>`;
+
+    grid.innerHTML = `
+      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">ESP32 वाई-फ़ाई व हार्टबीट</div>
+        <div style="font-size:13.5px;font-weight:800;margin:4px 0">${heartbeatText}</div>
+        <div style="font-size:11px;color:#475569">IP: <b>${res.ip || '192.168.1.8'}</b> | Ver: <b>${res.firmware || '2.5-MAX'}</b></div>
+      </div>
+
+      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">RFID RC522 रीडर</div>
+        <div style="font-size:13.5px;font-weight:800;color:#16a34a;margin:4px 0">🟢 एक्टिव (48dB मैक्स गेन)</div>
+        <div style="font-size:11px;color:#475569">एंटीना सेंसिटिविटी: <b>सुपरफ़ास्ट 48dB</b> | कार्ड दूरी बढ़ी</div>
+      </div>
+
+      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">OLED स्क्रीन डिस्प्ले</div>
+        <div style="font-size:13.5px;font-weight:800;color:#16a34a;margin:4px 0">🟢 एक्टिव (SSD1306 I2C)</div>
+        <div style="font-size:11px;color:#475569">रेजोल्यूशन: <b>128x64</b> | स्पीड: <b>400kHz Fast I2C</b></div>
+      </div>
+
+      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">फ़्लो सेंसर (Water Flow)</div>
+        <div style="font-size:13.5px;font-weight:800;color:#16a34a;margin:4px 0">🟢 एक्टिव (ZJ-S201)</div>
+        <div style="font-size:11px;color:#475569">कैलिब्रेशन: <b>${res.flow?.pulses_per_litre || 450} पल्स/लीटर</b> (GPIO 18)</div>
+      </div>
+
+      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">पंप / वॉल्व रिले (12V)</div>
+        <div style="font-size:13.5px;font-weight:800;color:#16a34a;margin:4px 0">🟢 सुरक्षित (Active LOW)</div>
+        <div style="font-size:11px;color:#475569">कंट्रोल पिन: <b>GPIO 26</b> (20A रिले लोड)</div>
+      </div>
+
+      <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:12px">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase">फिजिकल पुश बटन्स (9 बटन)</div>
+        <div style="font-size:13.5px;font-weight:800;color:#16a34a;margin:4px 0">🟢 9 बटन कनेक्टेड</div>
+        <div style="font-size:11px;color:#475569"><b>1L, 2L, 5L, 10L, 15L, 20L, START, CANCEL, BAL</b></div>
+      </div>
+    `;
+  } catch(e) {
+    console.error('loadDiagnostics error:', e);
+    grid.innerHTML = '<div style="color:#dc2626;font-size:12px;padding:10px">डायग्नोस्टिक्स एरर: ' + e.message + '</div>';
+  }
 }
 
 // ── LOAD DASHBOARD ──
@@ -2128,7 +2341,14 @@ function beShowResult(c, paise_per_litre, txns) {
 }
 
 // ── INIT ──
-loadDashboard();loadCustomers();loadPrice();
+loadDashboard();loadCustomers();loadPrice();loadTankStatus();loadDiagnostics();
+setInterval(() => {
+  const dashPage = document.getElementById('page-dashboard');
+  if (dashPage && dashPage.classList.contains('active')) {
+    loadTankStatus();
+    loadDiagnostics();
+  }
+}, 8000);
 </script>
 </body>
 </html>

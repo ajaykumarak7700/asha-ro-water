@@ -26,7 +26,7 @@
     "flow_stall_seconds": 6,
     "default_card_litres": 1,
     "wait_button_seconds": 30,
-    "order_expiry_seconds": 20,
+    "order_expiry_seconds": 45,
     "tank_alert_threshold": 100,
     "tank_capacity_litres": 1000,
     "multi_quantity_enabled": false
