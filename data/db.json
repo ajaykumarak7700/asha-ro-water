@@ -8,20 +8,27 @@
     "6d0324fb-094c-463a-80ba-87753ee08adc": 47600
   },
   "settings": {
+    "cashback_rs": 1,
     "price_tiers": {
       "1": 1,
+      "2": 2,
       "5": 5,
       "10": 10,
+      "15": 15,
       "20": 15
     },
     "dispense_mode": "button",
     "auto_refund_upi": true,
+    "cashback_litres": 20,
     "razorpay_key_id": "rzp_live_U42Ce8kw6IIhK9",
+    "cashback_enabled": true,
     "pulses_per_litre": 450,
     "flow_stall_seconds": 6,
     "default_card_litres": 1,
     "wait_button_seconds": 30,
     "order_expiry_seconds": 20,
+    "tank_alert_threshold": 100,
+    "tank_capacity_litres": 1000,
     "multi_quantity_enabled": false
   },
   "customers": [
