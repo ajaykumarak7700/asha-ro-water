@@ -5,7 +5,7 @@
   "wallets": {
     "2172fcb0-4cbb-46f4-a8ee-d1eb5c1fe851": 0,
     "61c91d8d-95e5-4c1a-9c42-3bca39452696": 0,
-    "6d0324fb-094c-463a-80ba-87753ee08adc": 47600
+    "6d0324fb-094c-463a-80ba-87753ee08adc": 42600
   },
   "settings": {
     "cashback_rs": 1,
@@ -26,7 +26,7 @@
     "pulses_per_litre": 450,
     "flow_stall_seconds": 6,
     "default_card_litres": 1,
-    "tank_current_litres": 1000,
+    "tank_current_litres": 948.8,
     "wait_button_seconds": 30,
     "order_expiry_seconds": 45,
     "tank_alert_threshold": 100,
@@ -68,6 +68,128 @@
     }
   ],
   "transactions": [
+    {
+      "id": "DSP_CEB00086",
+      "note": "5 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 6:59:29 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_CEB00086",
+      "amount_paise": 500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "RZ_AQIQNoY3",
+      "note": "Razorpay UPI: ₹1 -> 1L Water",
+      "type": "DISPENSE",
+      "card_uid": "RAZORPAY_QR",
+      "created_at": "27/11/2026, 6:51:55 pm",
+      "customer_id": "RAZORPAY_BUYER",
+      "payment_ref": "pay_U5DLlbAQIQNoY3",
+      "amount_paise": 100,
+      "customer_name": "Razorpay User",
+      "customer_phone": ""
+    },
+    {
+      "id": "DSP_8F228F8E",
+      "note": "5 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 6:45:36 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_8F228F8E",
+      "amount_paise": 500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_750F7D9D",
+      "note": "5 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 6:44:39 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_750F7D9D",
+      "amount_paise": 500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_B6B0C2C5",
+      "note": "5 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 6:44:21 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_B6B0C2C5",
+      "amount_paise": 500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_0D581E4A",
+      "note": "5 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 6:43:50 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_0D581E4A",
+      "amount_paise": 500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_D9D99043",
+      "note": "5 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 6:43:25 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_D9D99043",
+      "amount_paise": 500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_0C13859F",
+      "note": "5 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 6:43:07 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_0C13859F",
+      "amount_paise": 500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_9F1E2807",
+      "note": "5 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 6:33:16 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_9F1E2807",
+      "amount_paise": 500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_DE0CC303",
+      "note": "5 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 6:10:45 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_DE0CC303",
+      "amount_paise": 500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_C7FFF92F",
+      "note": "5 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 6:10:01 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_C7FFF92F",
+      "amount_paise": 500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
     {
       "id": "RZ_52nekwhk",
       "note": "[CANCELLED - Water Not Dispensed] Razorpay UPI: ₹1 -> 1L Water",
@@ -654,6 +776,20 @@
       "customer_phone": "",
       "failure_reason": "Jar Nahi Lagaya / Cancelled",
       "actual_dispensed_litres": 0
+    },
+    {
+      "id": "RZ_AQIQNoY3",
+      "litres": 1,
+      "status": "completed",
+      "amount_rs": 1,
+      "created_at": "27/11/2026, 6:51:55 pm",
+      "payment_id": "pay_U5DLlbAQIQNoY3",
+      "started_at": "27/11/2026, 6:51:57 pm",
+      "completed_at": "27/11/2026, 6:52:12 pm",
+      "created_at_ms": 1795785715386,
+      "customer_name": "Razorpay User",
+      "customer_phone": "",
+      "actual_dispensed_litres": 1.184444
     }
   ],
   "cashback_wallets": {

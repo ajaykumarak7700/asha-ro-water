@@ -837,6 +837,21 @@ bool checkPendingQROrders() {
         serializeJson(completeDoc, compPayload);
         compHttp.POST(compPayload);
         compHttp.end();
+
+        // 🛡️ Full Post-QR RFID Reset & Antenna Power-Cycle
+        rfid.PCD_AntennaOff();
+        delay(60);
+        rfid.PCD_Init();
+        rfid.PCD_AntennaOn();
+        rfid.PCD_SetAntennaGain(MFRC522::RxGain_max);
+        lastScannedUID = "";
+        lastScanTime = 0;
+        isDispensing = false;
+        lastOledRefresh = millis();
+        String netStatus = (WiFi.status() == WL_CONNECTED) ? ("WiFi: " + WiFi.SSID().substring(0, 12)) : "Offline Ready";
+        showScreen("ASHA RO WATER", netStatus, "Scan QR / Tap Card", "1L|2L|5L|10L|15L|20L");
+        beep(1, 60, 1800);
+
         return true;
       }
     }
@@ -1036,6 +1051,25 @@ void handleCardScanned(String uid, float preselectedLitres) {
     beep(3, 150, 700);
     delay(2500);
   }
+
+  // 🛡️ FULL POST-DISPENSE RFID RESET & ANTENNA POWER-CYCLE
+  // Turns off RF field for 60ms to completely discharge and wake passive card from HALT state!
+  rfid.PCD_AntennaOff();
+  delay(60);
+  rfid.PCD_Init();
+  rfid.PCD_AntennaOn();
+  rfid.PCD_SetAntennaGain(MFRC522::RxGain_max);
+
+  // Clear trackers so tapping immediately after dispense is recognized as fresh
+  lastScannedUID = "";
+  lastScanTime = 0;
+  isDispensing = false;
+
+  // Instantly return OLED to Ready Screen
+  lastOledRefresh = millis();
+  String netStatus = (WiFi.status() == WL_CONNECTED) ? ("WiFi: " + WiFi.SSID().substring(0, 12)) : "Offline Ready";
+  showScreen("ASHA RO WATER", netStatus, "Scan QR / Tap Card", "1L|2L|5L|10L|15L|20L");
+  beep(1, 60, 1800);
 }
 
 // =================================================================
@@ -1228,11 +1262,8 @@ void loop() {
     return;
   }
 
-  // ⚡ 1. RFID SENSING FIRST (Ultra-Sensitive Wakeup, Zero Delay)
-  byte bufferATQA[2];
-  byte bufferSize = sizeof(bufferATQA);
-  bool cardPresent = (rfid.PICC_WakeupA(bufferATQA, &bufferSize) == MFRC522::STATUS_OK) || rfid.PICC_IsNewCardPresent();
-  if (cardPresent && rfid.PICC_ReadCardSerial()) {
+  // ⚡ 1. RFID SENSING (Clean Detection with Zero Lockup)
+  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
     String uid = "";
     for (byte i = 0; i < rfid.uid.size; i++) {
       if (i > 0) uid += " ";
@@ -1245,11 +1276,15 @@ void loop() {
     rfid.PCD_StopCrypto1();
 
     unsigned long now = millis();
-    if (uid != lastScannedUID || (now - lastScanTime) > 1200) {
+    if (uid != lastScannedUID || (now - lastScanTime) > 600) {
       lastScannedUID = uid;
       lastScanTime = now;
       handleCardScanned(uid);
     }
+
+    // 🛡️ Instant Hardware Refresh: clears FIFO/errors so rapid taps NEVER freeze!
+    rfid.PCD_Init();
+    rfid.PCD_SetAntennaGain(MFRC522::RxGain_max);
     return;
   }
 
