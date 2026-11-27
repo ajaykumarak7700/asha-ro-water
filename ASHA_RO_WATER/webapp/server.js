@@ -1645,7 +1645,7 @@ app.get('/api/machine/diagnostics', (req, res) => {
     uptime_sec: machineDiagnostics.uptime_sec || null,
     firmware: machineDiagnostics.firmware_version,
     rfid: {
-      status: (machineDiagnostics.rfid_ok === false) ? 'FAIL' : 'OK',
+      status: (machineDiagnostics.rfid_ver === '0x0' || machineDiagnostics.rfid_ver === '0xff' || machineDiagnostics.rfid_ver === '0x00') ? 'FAIL' : 'OK',
       version: machineDiagnostics.rfid_ver || '0x92',
       power: '48dB Max Sensitivity',
       last_card: machineDiagnostics.last_card_uid,

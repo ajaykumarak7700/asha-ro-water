@@ -1095,7 +1095,7 @@ async function loadDiagnostics() {
     }
 
     // RFID hardware evaluation
-    const rfidOk = (res.rfid?.status === 'OK');
+    const rfidOk = (res.rfid?.status === 'OK' || res.rfid?.version === '0xb2' || res.rfid?.version === '0x92');
     const rfidText = rfidOk
       ? `<span style="color:#16a34a;font-weight:800">🟢 एक्टिव (चिप: ${res.rfid.version || '0x92'} - 48dB गेन)</span>`
       : `<span style="color:#dc2626;font-weight:800">🔴 तार निकली है (Hardware Disconnected!)</span>`;

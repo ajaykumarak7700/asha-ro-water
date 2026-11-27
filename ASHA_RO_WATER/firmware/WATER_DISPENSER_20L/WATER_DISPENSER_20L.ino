@@ -27,6 +27,7 @@
 #include <Adafruit_SSD1306.h>
 #include <WiFi.h>
 #include <WiFiMulti.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
@@ -35,10 +36,24 @@ WiFiMulti wifiMulti;
 Preferences prefs;
 
 // =================================================================
-// ⚙️ SERVER & SYSTEM CONFIGURATION
+// ⚙️ SERVER & SYSTEM CONFIGURATION (CLOUD + LOCAL AUTO-SWITCH)
 // =================================================================
-const char* SERVER_IP       = "192.168.1.8";     // Local Computer LAN IP / Gateway
-const int   SERVER_PORT     = 3000;              // Server Port
+const char* CLOUD_SERVER_URL = "https://asha-ro-water.onrender.com"; // Render Live Global Cloud
+const char* LOCAL_SERVER_URL = "http://192.168.1.8:3000";            // Local Computer LAN Fallback
+String      activeServerBase = CLOUD_SERVER_URL;
+
+WiFiClientSecure secClient;
+WiFiClient       normalClient;
+
+bool beginHttp(HTTPClient &http, String pathAndQuery) {
+  String fullUrl = activeServerBase + pathAndQuery;
+  if (fullUrl.startsWith("https://")) {
+    secClient.setInsecure();
+    return http.begin(secClient, fullUrl);
+  } else {
+    return http.begin(normalClient, fullUrl);
+  }
+}
 
 float pricePerLitreRs       = 1.0;
 int   flowStallSeconds      = 6;
@@ -440,7 +455,7 @@ void handleBalanceEnquiry() {
       // 2. Fetch latest online if connected
       if (WiFi.status() == WL_CONNECTED) {
         HTTPClient http;
-        http.begin("http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/card/" + uidClean);
+        beginHttp(http, "/api/card/" + uidClean);
         http.setTimeout(1200);
         int code = http.GET();
         if (code == 200) {
@@ -707,10 +722,33 @@ float dispenseWater(String customerName, float litresToDispense) {
 bool checkPendingQROrders() {
   if (!wifiConnected || isDispensing) return false;
 
+  // 1. Probe Physical Hardware Silicon
+  byte rfidVer = rfid.PCD_ReadRegister(MFRC522::VersionReg);
+  bool rfidOk = (rfidVer != 0x00 && rfidVer != 0xFF);
+  String rfidVerStr = "0x" + String(rfidVer, HEX);
+
+  Wire.beginTransmission(OLED_ADDR);
+  bool oledOk = (Wire.endTransmission() == 0);
+
+  int rssiDbm = WiFi.RSSI();
+  String ssidName = WiFi.SSID();
+  ssidName.replace(" ", "%20");
+  String espIp = WiFi.localIP().toString();
+  uint32_t freeRam = ESP.getFreeHeap();
+  uint32_t uptimeSec = millis() / 1000;
+
+  String telemetryUrl = "/api/machine/pending?rfid_ok=" + String(rfidOk ? "1" : "0") +
+                        "&rfid_ver=" + rfidVerStr +
+                        "&oled_ok=" + String(oledOk ? "1" : "0") +
+                        "&ssid=" + ssidName +
+                        "&rssi=" + String(rssiDbm) +
+                        "&esp_ip=" + espIp +
+                        "&free_heap=" + String(freeRam) +
+                        "&uptime=" + String(uptimeSec);
+
   HTTPClient http;
-  String checkUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/pending";
-  http.begin(checkUrl);
-  http.setTimeout(700);
+  beginHttp(http, telemetryUrl);
+  http.setTimeout(1400);
 
   int httpCode = http.GET();
   if (httpCode == 200) {
@@ -752,7 +790,7 @@ bool checkPendingQROrders() {
           showScreen("TANKI KHALI HAI!", "Pani Uplabdh Nahi", "Paisa Auto-Refund", "24h me wapas");
           beep(3, 200, 600);
           HTTPClient compHttp;
-          compHttp.begin("http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/complete");
+          beginHttp(compHttp, "/api/machine/complete");
           compHttp.addHeader("Content-Type", "application/json");
 
           JsonDocument failDoc;
@@ -770,7 +808,7 @@ bool checkPendingQROrders() {
 
         if (!waitForStartButton(buyerName, orderLitres)) {
           HTTPClient cancelHttp;
-          cancelHttp.begin("http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/complete");
+          beginHttp(cancelHttp, "/api/machine/complete");
           cancelHttp.addHeader("Content-Type", "application/json");
 
           JsonDocument cancelDoc;
@@ -788,7 +826,7 @@ bool checkPendingQROrders() {
         float dispensed = dispenseWater(buyerName, orderLitres);
 
         HTTPClient compHttp;
-        compHttp.begin("http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/complete");
+        beginHttp(compHttp, "/api/machine/complete");
         compHttp.addHeader("Content-Type", "application/json");
 
         JsonDocument completeDoc;
@@ -842,8 +880,7 @@ void handleCardScanned(String uid, float preselectedLitres) {
 
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
-    String checkUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/card/" + uidClean;
-    http.begin(checkUrl);
+    beginHttp(http, "/api/card/" + uidClean);
     http.setTimeout(1800);
 
     int httpCode = http.GET();
@@ -924,8 +961,8 @@ void handleCardScanned(String uid, float preselectedLitres) {
 
   if (onlineSuccess) {
     HTTPClient dspHttp;
-    String dspUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/dispense";
-    dspHttp.begin(dspUrl);
+    
+    beginHttp(dspHttp, "/api/dispense");
     dspHttp.addHeader("Content-Type", "application/json");
     dspHttp.setTimeout(2500);
 
@@ -954,8 +991,8 @@ void handleCardScanned(String uid, float preselectedLitres) {
     prefs.putFloat(("b_" + uidClean).c_str(), effectiveBal);
     if (onlineSuccess) {
       HTTPClient refHttp;
-      String refUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/card-dispense-refund";
-      refHttp.begin(refUrl);
+      
+      beginHttp(refHttp, "/api/card-dispense-refund");
       refHttp.addHeader("Content-Type", "application/json");
 
       JsonDocument refDoc;
@@ -994,7 +1031,7 @@ void syncCardsAndOfflineQueue() {
     serializeJson(uploadDoc, uploadJson);
 
     HTTPClient upHttp;
-    upHttp.begin("http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/offline-sync");
+    beginHttp(upHttp, "/api/machine/offline-sync");
     upHttp.addHeader("Content-Type", "application/json");
     upHttp.setTimeout(3000);
     int upCode = upHttp.POST(uploadJson);
@@ -1007,7 +1044,7 @@ void syncCardsAndOfflineQueue() {
 
   // 2. Download authorized cards & tier prices
   HTTPClient syncHttp;
-  syncHttp.begin("http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/sync-cards");
+  beginHttp(syncHttp, "/api/machine/sync-cards");
   syncHttp.setTimeout(3500);
   int syncCode = syncHttp.GET();
   if (syncCode == 200) {
