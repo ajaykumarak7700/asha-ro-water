@@ -534,7 +534,6 @@ input:focus,select:focus{border-color:var(--blue)}
             </div>
           </div>
           <input type="hidden" id="newPriceInput" value="1.00">
-          <input type="hidden" id="defaultCardLitresInput" value="20">
 
           <!-- QUANTITY PRICING / SLAB OFFER BOX -->
           <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:14px;margin:14px 0">
@@ -1793,91 +1792,100 @@ async function submitEdit(){
 
 // ── SETTINGS & PRICE ──
 async function loadPrice(){
-  const res = await fetch('/api/settings').then(r=>r.json()).catch(()=>null);
-  if(res && res.success){
-    if (document.getElementById('currentPrice')) document.getElementById('currentPrice').textContent = `₹${res.price_per_litre_rs} / L`;
-    if (document.getElementById('newPriceInput')) document.getElementById('newPriceInput').value = res.price_per_litre_rs;
+  try {
+    const res = await fetch('/api/settings').then(r=>r.json()).catch(()=>null);
+    if(res && res.success){
+      if (document.getElementById('currentPrice')) document.getElementById('currentPrice').textContent = `₹${res.price_per_litre_rs} / L`;
+      if (document.getElementById('newPriceInput')) document.getElementById('newPriceInput').value = res.price_per_litre_rs;
 
-    if(res.order_expiry_seconds) {
-      if (document.getElementById('currentExpirySeconds')) document.getElementById('currentExpirySeconds').textContent = `${res.order_expiry_seconds} Sec`;
-      if (document.getElementById('orderExpirySecondsInput')) document.getElementById('orderExpirySecondsInput').value = res.order_expiry_seconds;
-    }
-    if(res.flow_stall_seconds) {
-      if (document.getElementById('currentStallSeconds')) document.getElementById('currentStallSeconds').textContent = `${res.flow_stall_seconds} Sec`;
-      if (document.getElementById('flowStallSecondsInput')) document.getElementById('flowStallSecondsInput').value = res.flow_stall_seconds;
-    }
-    if(res.pulses_per_litre) {
-      if (document.getElementById('currentPulsesPerLitre')) document.getElementById('currentPulsesPerLitre').textContent = `${res.pulses_per_litre} P/L`;
-      if (document.getElementById('pulsesPerLitreInput')) document.getElementById('pulsesPerLitreInput').value = res.pulses_per_litre;
-    }
-
-    if(res.auto_refund_upi !== undefined) {
-      const isUpiOn = res.auto_refund_upi !== false;
-      if (document.getElementById('autoRefundUpiToggle')) document.getElementById('autoRefundUpiToggle').checked = isUpiOn;
-      if (document.getElementById('currentAutoRefund')) {
-        document.getElementById('currentAutoRefund').textContent = isUpiOn ? 'चालू (Active)' : 'बंद (Off)';
-        document.getElementById('currentAutoRefund').style.color = isUpiOn ? '#059669' : '#dc2626';
+      if(res.order_expiry_seconds) {
+        if (document.getElementById('currentExpirySeconds')) document.getElementById('currentExpirySeconds').textContent = `${res.order_expiry_seconds} Sec`;
+        if (document.getElementById('orderExpirySecondsInput')) document.getElementById('orderExpirySecondsInput').value = res.order_expiry_seconds;
       }
-    }
+      if(res.flow_stall_seconds) {
+        if (document.getElementById('currentStallSeconds')) document.getElementById('currentStallSeconds').textContent = `${res.flow_stall_seconds} Sec`;
+        if (document.getElementById('flowStallSecondsInput')) document.getElementById('flowStallSecondsInput').value = res.flow_stall_seconds;
+      }
+      if(res.pulses_per_litre) {
+        if (document.getElementById('currentPulsesPerLitre')) document.getElementById('currentPulsesPerLitre').textContent = `${res.pulses_per_litre} P/L`;
+        if (document.getElementById('pulsesPerLitreInput')) document.getElementById('pulsesPerLitreInput').value = res.pulses_per_litre;
+      }
 
-    if(res.cashback_enabled !== undefined) {
-      if (document.getElementById('cashbackToggle')) document.getElementById('cashbackToggle').checked = res.cashback_enabled !== false;
-    }
-    if(res.cashback_litres) {
-      if (document.getElementById('cashbackLitresInput')) document.getElementById('cashbackLitresInput').value = res.cashback_litres;
-    }
-    if(res.cashback_rs !== undefined) {
-      if (document.getElementById('cashbackRsInput')) document.getElementById('cashbackRsInput').value = res.cashback_rs;
-    }
+      if(res.auto_refund_upi !== undefined) {
+        const isUpiOn = res.auto_refund_upi !== false;
+        if (document.getElementById('autoRefundUpiToggle')) document.getElementById('autoRefundUpiToggle').checked = isUpiOn;
+        if (document.getElementById('currentAutoRefund')) {
+          document.getElementById('currentAutoRefund').textContent = isUpiOn ? 'चालू (Active)' : 'बंद (Off)';
+          document.getElementById('currentAutoRefund').style.color = isUpiOn ? '#059669' : '#dc2626';
+        }
+      }
 
-    const cbL = res.cashback_litres || 20;
-    const cbR = res.cashback_rs !== undefined ? res.cashback_rs : 1.0;
-    const isCbOn = res.cashback_enabled !== false;
-    const badgeEl = document.getElementById('currentCashbackBadge');
-    if (badgeEl) {
-      badgeEl.textContent = isCbOn ? `${cbL}L पर ₹${cbR}` : 'बंद (Off)';
-      badgeEl.style.color = isCbOn ? '#16a34a' : '#94a3b8';
-    }
+      if(res.cashback_enabled !== undefined) {
+        if (document.getElementById('cashbackToggle')) document.getElementById('cashbackToggle').checked = res.cashback_enabled !== false;
+      }
+      if(res.cashback_litres) {
+        if (document.getElementById('cashbackLitresInput')) document.getElementById('cashbackLitresInput').value = res.cashback_litres;
+      }
+      if(res.cashback_rs !== undefined) {
+        if (document.getElementById('cashbackRsInput')) document.getElementById('cashbackRsInput').value = res.cashback_rs;
+      }
 
-    if (res.tank_capacity_litres) {
-      if (document.getElementById('currentTankCapBadge')) document.getElementById('currentTankCapBadge').textContent = `${res.tank_capacity_litres} Litres`;
-      if (document.getElementById('tankCapacityInput')) document.getElementById('tankCapacityInput').value = res.tank_capacity_litres;
-    }
-    if (document.getElementById('tankAlertThresholdInput') && res.tank_alert_threshold !== undefined) {
-      document.getElementById('tankAlertThresholdInput').value = res.tank_alert_threshold;
-    }
+      const cbL = res.cashback_litres || 20;
+      const cbR = res.cashback_rs !== undefined ? res.cashback_rs : 1.0;
+      const isCbOn = res.cashback_enabled !== false;
+      const badgeEl = document.getElementById('currentCashbackBadge');
+      if (badgeEl) {
+        badgeEl.textContent = isCbOn ? `${cbL}L पर ₹${cbR}` : 'बंद (Off)';
+        badgeEl.style.color = isCbOn ? '#16a34a' : '#94a3b8';
+      }
 
-    if (res.price_tiers) {
-      if (document.getElementById('tier1LInput')) document.getElementById('tier1LInput').value = res.price_tiers["1"] || 1.0;
-      if (document.getElementById('tier2LInput')) document.getElementById('tier2LInput').value = res.price_tiers["2"] || 2.0;
-      if (document.getElementById('tier5LInput')) document.getElementById('tier5LInput').value = res.price_tiers["5"] || 5.0;
-      if (document.getElementById('tier10LInput')) document.getElementById('tier10LInput').value = res.price_tiers["10"] || 10.0;
-      if (document.getElementById('tier15LInput')) document.getElementById('tier15LInput').value = res.price_tiers["15"] || 15.0;
-      if (document.getElementById('tier20LInput')) document.getElementById('tier20LInput').value = res.price_tiers["20"] || 15.0;
-    }
+      if (res.tank_capacity_litres) {
+        if (document.getElementById('currentTankCapBadge')) document.getElementById('currentTankCapBadge').textContent = `${res.tank_capacity_litres} Litres`;
+        if (document.getElementById('tankCapacityInput')) document.getElementById('tankCapacityInput').value = res.tank_capacity_litres;
+      }
+      if (document.getElementById('tankAlertThresholdInput') && res.tank_alert_threshold !== undefined) {
+        document.getElementById('tankAlertThresholdInput').value = res.tank_alert_threshold;
+      }
 
-    if(res.razorpay_key_id && document.getElementById('rzpKeyInput')) document.getElementById('rzpKeyInput').value = res.razorpay_key_id;
-    if(res.razorpay_key_secret && document.getElementById('rzpSecretInput')) document.getElementById('rzpSecretInput').value = res.razorpay_key_secret;
+      if (res.price_tiers) {
+        if (document.getElementById('tier1LInput')) document.getElementById('tier1LInput').value = res.price_tiers["1"] || 1.0;
+        if (document.getElementById('tier2LInput')) document.getElementById('tier2LInput').value = res.price_tiers["2"] || 2.0;
+        if (document.getElementById('tier5LInput')) document.getElementById('tier5LInput').value = res.price_tiers["5"] || 5.0;
+        if (document.getElementById('tier10LInput')) document.getElementById('tier10LInput').value = res.price_tiers["10"] || 10.0;
+        if (document.getElementById('tier15LInput')) document.getElementById('tier15LInput').value = res.price_tiers["15"] || 15.0;
+        if (document.getElementById('tier20LInput')) document.getElementById('tier20LInput').value = res.price_tiers["20"] || 15.0;
+      }
+
+      if(res.razorpay_key_id && document.getElementById('rzpKeyInput')) document.getElementById('rzpKeyInput').value = res.razorpay_key_id;
+      if(res.razorpay_key_secret && document.getElementById('rzpSecretInput')) document.getElementById('rzpSecretInput').value = res.razorpay_key_secret;
+    }
+  } catch(err) {
+    console.error('loadPrice error:', err);
+  } finally {
+    checkCloudStatus();
   }
-  checkCloudStatus();
 }
 
 async function checkCloudStatus(){
   const statusEl = document.getElementById('cloudDbBadge');
   if (!statusEl) return;
-  const res = await fetch('/api/cloud-status').then(r=>r.json()).catch(()=>null);
-  if (res && res.success) {
-    const custCount = (res.cloud_customers_count !== undefined) ? res.cloud_customers_count : res.supabase_customers_count;
-    if (res.pg_status === 'connected') {
-      const provider = res.provider || (res.active_host && res.active_host.includes('neon.tech') ? 'Neon Cloud PostgreSQL' : 'Cloud PostgreSQL');
-      statusEl.innerHTML = `<span style="color:#16a34a;font-weight:700">🟢 ${provider} Connected</span><br>` +
-        `<span style="color:#64748b">Host: <b>${res.active_host || 'Neon AWS Singapore'}</b> | Cloud Database me <b>${custCount}</b> Cards & Wallets 100% surakshit saved hain.</span>`;
+  try {
+    const res = await fetch('/api/cloud-status').then(r=>r.json()).catch(()=>null);
+    if (res && res.success) {
+      const custCount = (res.cloud_customers_count !== undefined) ? res.cloud_customers_count : (res.supabase_customers_count || 0);
+      if (res.pg_status === 'connected') {
+        const provider = res.provider || (res.active_host && res.active_host.includes('neon.tech') ? 'Neon Cloud PostgreSQL' : 'Cloud PostgreSQL');
+        statusEl.innerHTML = `<span style="color:#16a34a;font-weight:700">🟢 ${provider} Connected</span><br>` +
+          `<span style="color:#64748b">Host: <b>${res.active_host || 'Neon AWS Singapore'}</b> | Cloud Database me <b>${custCount}</b> Cards & Wallets 100% surakshit saved hain.</span>`;
+      } else {
+        statusEl.innerHTML = `<span style="color:#dc2626;font-weight:700">⚠️ Cloud Database Disconnected (${res.pg_error || res.pg_status})</span><br>` +
+          `<span style="color:#64748b">Local storage active (${res.memory_customers_count || 0} cards).</span>`;
+      }
     } else {
-      statusEl.innerHTML = `<span style="color:#dc2626;font-weight:700">⚠️ Cloud Database Disconnected (${res.pg_error || res.pg_status})</span><br>` +
-        `<span style="color:#64748b">Local disk storage active (${res.memory_customers_count} cards). Neeche diye button se Backup download karke surakshit rakhein.</span>`;
+      statusEl.innerHTML = `<span style="color:#64748b">Cloud status check nahi ho saka.</span>`;
     }
-  } else {
-    statusEl.innerHTML = `<span style="color:#64748b">Cloud status check nahi ho saka.</span>`;
+  } catch(e) {
+    statusEl.innerHTML = `<span style="color:#dc2626;font-weight:700">⚠️ Cloud status error: ${e.message}</span>`;
   }
 }
 
@@ -1905,6 +1913,7 @@ async function syncFromCloudDirect() {
 }
 
 async function updatePrice(){
+  const adminToken = getAdminToken() || 'Ajay@6341#';
   const body = {
     price_per_litre_rs: document.getElementById('newPriceInput')?.value || "1.00",
     price_tiers: {
@@ -1920,29 +1929,33 @@ async function updatePrice(){
     cashback_rs: parseFloat(document.getElementById('cashbackRsInput')?.value || 1.0),
     tank_capacity_litres: parseFloat(document.getElementById('tankCapacityInput')?.value || 1000),
     tank_alert_threshold: parseFloat(document.getElementById('tankAlertThresholdInput')?.value || 100),
-    order_expiry_seconds: document.getElementById('orderExpirySecondsInput')?.value,
-    flow_stall_seconds: document.getElementById('flowStallSecondsInput')?.value,
-    pulses_per_litre: document.getElementById('pulsesPerLitreInput')?.value,
+    order_expiry_seconds: document.getElementById('orderExpirySecondsInput')?.value || 90,
+    flow_stall_seconds: document.getElementById('flowStallSecondsInput')?.value || 6,
+    pulses_per_litre: document.getElementById('pulsesPerLitreInput')?.value || 450,
     auto_refund_upi: document.getElementById('autoRefundUpiToggle') ? document.getElementById('autoRefundUpiToggle').checked : true,
     razorpay_key_id: document.getElementById('rzpKeyInput')?.value,
     razorpay_key_secret: document.getElementById('rzpSecretInput')?.value,
-    admin_pin: document.getElementById('pricePinInput')?.value || getAdminToken()
+    admin_pin: document.getElementById('pricePinInput')?.value || adminToken
   };
 
-  const res = await fetch('/api/settings', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + getAdminToken()
-    },
-    body: JSON.stringify(body)
-  }).then(r=>r.json()).catch(()=>null);
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + adminToken
+      },
+      body: JSON.stringify(body)
+    }).then(r => r.json());
 
-  if(res && res.success){
-    showAlert('priceAlert', res.message, 'success');
-    loadPrice();
-  } else {
-    showAlert('priceAlert', res ? res.message : 'Error updating settings', 'error');
+    if(res && res.success){
+      showAlert('priceAlert', res.message, 'success');
+      loadPrice();
+    } else {
+      showAlert('priceAlert', (res && res.message) ? res.message : 'Error updating settings', 'error');
+    }
+  } catch(err) {
+    showAlert('priceAlert', 'Error updating settings: ' + err.message, 'error');
   }
 }
 
