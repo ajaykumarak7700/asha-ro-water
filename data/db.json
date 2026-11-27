@@ -5,7 +5,7 @@
   "wallets": {
     "2172fcb0-4cbb-46f4-a8ee-d1eb5c1fe851": 0,
     "61c91d8d-95e5-4c1a-9c42-3bca39452696": 0,
-    "6d0324fb-094c-463a-80ba-87753ee08adc": 47900
+    "6d0324fb-094c-463a-80ba-87753ee08adc": 47600
   },
   "settings": {
     "price_tiers": {
@@ -21,7 +21,7 @@
     "flow_stall_seconds": 6,
     "default_card_litres": 1,
     "wait_button_seconds": 30,
-    "order_expiry_seconds": 90,
+    "order_expiry_seconds": 20,
     "multi_quantity_enabled": false
   },
   "customers": [
@@ -60,11 +60,59 @@
   ],
   "transactions": [
     {
-      "id": "RZ_fKzuwDv1",
-      "note": "[CANCELLED - Water Not Dispensed] Razorpay UPI: ₹1 -> 1L Water",
+      "id": "DSP_FD32B079",
+      "note": "1 Liter Dispensed",
       "type": "DISPENSE",
-      "status": "CANCELLED",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 12:43:38 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_FD32B079",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_F6B03003",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 12:42:54 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_F6B03003",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_5C60795C",
+      "note": "1 Liter Dispensed",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "27/11/2026, 12:42:38 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_5C60795C",
+      "amount_paise": 100,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "RFND_rfnd_U56L4X0PYrJop5",
+      "note": "₹1.00 रिफंड जारी (Refund ID: rfnd_U56L4X0PYrJop5) — 24 घंटे के अंदर आपके बैंक खाते / UPI में क्रेडिट हो जाएगा।",
+      "type": "REFUND",
+      "status": "AUTO_REFUNDED",
       "card_uid": "RAZORPAY_QR",
+      "order_id": "RZ_fKzuwDv1",
+      "created_at": "27/11/2026, 12:00:23 pm",
+      "customer_id": "RAZORPAY_BUYER",
+      "payment_ref": "rfnd_U56L4X0PYrJop5",
+      "amount_paise": 100,
+      "customer_name": "Razorpay User",
+      "customer_phone": ""
+    },
+    {
+      "id": "RZ_fKzuwDv1",
+      "note": "[AUTO-REFUNDED: 24H Bank Credit] Razorpay UPI: ₹1 -> 1L Water",
+      "type": "DISPENSE",
+      "status": "AUTO_REFUNDED",
+      "card_uid": "RAZORPAY_QR",
+      "refund_id": "rfnd_U56L4X0PYrJop5",
       "created_at": "27/11/2026, 11:59:43 am",
       "customer_id": "RAZORPAY_BUYER",
       "payment_ref": "pay_U56KKwfKzuwDv1",
