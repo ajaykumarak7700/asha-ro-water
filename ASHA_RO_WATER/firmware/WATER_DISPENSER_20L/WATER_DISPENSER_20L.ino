@@ -1,30 +1,15 @@
 /**
  * =================================================================
- *        🚰 ASHA RO WATER - SMART WATER DISPENSER SYSTEM
+ *        🚰 ASHA RO WATER - ULTRA-FAST SMART DISPENSER
  * =================================================================
- * 
  * Features:
- *   1. 📱 QR Code UPI Payment:
- *      Jitna rupaye pay kiya, website rate ke hisab se utna Litre paani.
- * 
- *   2. 🔘 Smart Start Button & Jar Safety:
- *      Payment ya card ke baad pani turant nahi girega;
- *      Green Button dabane par hi pani chalu hoga (Jar waste protection).
- *      Red Cancel button dabane par refund/cancel.
- *      Admin toggle: 'button' ya 'auto'.
- * 
- *   3. 🔘 Multi-Quantity Buttons (1L, 5L, 10L, 20L):
- *      Card scan karne par customer manchahe pani ka button daba sakega
- *      aur utna hi balance katega. Admin toggle: on / off.
- * 
- *   4. 💳 RFID Card Tap Dispense:
- *      Online & Offline mode me balance check & auto-sync.
- * 
- *   5. 🖥️ Live OLED Display & Buzzer:
- *      Real-time Litre progress bar, user name, balance, beep sounds.
- * 
- *   6. 🌊 ZJ-S201 Flow Sensor (K-Factor Pulse Calibration) & 12V Relay:
- *      Pin D34 se pulse count, Pin D26 se Relay ON/OFF.
+ *   1. ⚡ Lightning-Fast RFID: Max antenna gain (48dB), instant card sensing.
+ *   2. 🛡️ Smart Offline Fallback: If WiFi/Server lags, uses local flash memory.
+ *      Never says 'Unregistered' on network glitches!
+ *   3. 🏷️ Quantity-Wise Tiered Pricing: 1L=₹1, 5L=₹5, 10L=₹10, 20L=₹15.
+ *   4. 🔘 Smart Start & Cancel Push Buttons (Jar Waste Protection).
+ *   5. 🌊 ZJ-S201 Flow Sensor (K-Factor Pulse Calibration) & Dry-Run Shield.
+ *   6. 📶 Auto-Sync: Cards & offline deductions synced in background.
  * =================================================================
  */
 
@@ -43,52 +28,74 @@ WiFiMulti wifiMulti;
 Preferences prefs;
 
 // =================================================================
-// ⚙️ USER CONFIGURATION
+// ⚙️ SERVER & SYSTEM CONFIGURATION
 // =================================================================
-const char* SERVER_IP     = "192.168.1.8";     // Web Server IP (Computer LAN IP)
-const int   SERVER_PORT   = 3000;              // Server Port
+const char* SERVER_IP       = "192.168.1.8";     // Local Computer LAN IP
+const int   SERVER_PORT     = 3000;              // Server Port
 
-float defaultCardLitres   = 2.0;               // Default card dispense quantity
-float pricePerLitreRs     = 1.0;               // Price per Litre (Server se auto sync)
-int   flowStallSeconds    = 6;                 // Flow stall & dry-run timeout in seconds (Admin sync)
-float pulsesPerLitre      = 450.0;             // ZJ-S201 Sensor calibration pulses/L (Admin sync)
-const bool  RELAY_ACTIVE_LOW = false;          // False: Active HIGH relay (HIGH par relay ON, LOW par OFF)
+float defaultCardLitres     = 1.0;
+float pricePerLitreRs       = 1.0;
+int   flowStallSeconds      = 6;
+float pulsesPerLitre        = 450.0;
+const bool RELAY_ACTIVE_LOW = false;
+
+// Quantity-Wise Tiered Prices
+float price1L               = 1.0;
+float price5L               = 5.0;
+float price10L              = 10.0;
+float price20L              = 15.0;
+
+// Admin Settings
+String dispenseMode         = "button"; // "button" or "auto"
+int    waitButtonSeconds    = 60;
+bool   multiQuantityEnable  = true;
 
 // =================================================================
 // 📌 PIN DEFINITIONS
 // =================================================================
-#define RFID_SS_PIN   5
-#define RFID_RST_PIN  22
+#define RFID_SS_PIN    5
+#define RFID_RST_PIN   22
 
-#define OLED_SDA_PIN  21
-#define OLED_SCL_PIN  15
-#define OLED_ADDR     0x3C
+#define OLED_SDA_PIN   21
+#define OLED_SCL_PIN   15
+#define OLED_ADDR      0x3C
 
-#define BUZZER_PIN    13
-#define FLOW_PIN      34
-#define RELAY_PIN     26
+#define BUZZER_PIN     13
+#define FLOW_PIN       34
+#define RELAY_PIN      26
 
-// 🔘 PUSH BUTTONS & INDICATOR LED PINS
-#define BTN_START_PIN      4    // Green Push Button (Start Water Dispense)
-#define BTN_CANCEL_PIN     16   // Red Push Button (Cancel / Emergency Stop)
-#define LED_START_PIN      25   // Green LED Indicator for Start Button (Active HIGH)
+// Push Buttons & LED Pins
+#define BTN_START_PIN  4    // Green Push Button (Start)
+#define BTN_CANCEL_PIN 16   // Red Push Button (Cancel / Emergency Stop)
+#define LED_START_PIN  25   // Green LED Indicator
 
-#define BTN_1L_PIN         17   // 1 Litre Select Button (Active LOW with internal PULLUP)
-#define BTN_5L_PIN         27   // 5 Litres Select Button (Active LOW with internal PULLUP)
-#define BTN_10L_PIN        32   // 10 Litres Select Button (Active LOW with internal PULLUP)
-#define BTN_20L_PIN        33   // 20 Litres Select Button (Active LOW with internal PULLUP)
+#define BTN_1L_PIN     17   // 1 Litre Button
+#define BTN_5L_PIN     27   // 5 Litres Button
+#define BTN_10L_PIN    32   // 10 Litres Button
+#define BTN_20L_PIN    33   // 20 Litres Button
 
-// Configuration variables (Synced from Admin Dashboard)
-String dispenseMode        = "button"; // "button" (wait for Start press) or "auto" (immediate)
-int    waitButtonSeconds   = 60;       // Seconds to wait for Start button before auto-cancelling
-bool   multiQuantityEnable = true;     // 1L, 5L, 10L, 20L selection buttons active
+// Hardware Objects
+MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
+Adafruit_SSD1306 display(128, 64, &Wire, -1);
 
-// Quantity-Wise Tiered Prices (Admin sync - e.g. 20L @ Rs.15)
-float price1L              = 1.0;
-float price5L              = 5.0;
-float price10L             = 10.0;
-float price20L             = 15.0;
+// Flow Sensor Interrupt
+volatile unsigned long flowPulseCount = 0;
+void IRAM_ATTR flowPulseISR() {
+  flowPulseCount++;
+}
 
+// Runtime State
+bool isDispensing         = false;
+String lastScannedUID     = "";
+unsigned long lastScanTime = 0;
+bool wifiConnected        = false;
+
+unsigned long lastQRPollTime   = 0;
+unsigned long lastCardSyncTime = 0;
+unsigned long lastWiFiCheck    = 0;
+unsigned long lastOledRefresh  = 0;
+
+// Helper: Calculate price based on selected litres
 float getQuantityCost(float litres) {
   if (litres == 1.0)  return price1L;
   if (litres == 5.0)  return price5L;
@@ -97,39 +104,22 @@ float getQuantityCost(float litres) {
   return litres * pricePerLitreRs;
 }
 
-// Objects
-MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
-Adafruit_SSD1306 display(128, 64, &Wire, -1);
-
-// Flow sensor variables
-volatile unsigned long flowPulseCount = 0;
-void IRAM_ATTR flowPulseISR() {
-  flowPulseCount++;
-}
-
-// State tracking
-bool isDispensing = false;
-String lastScannedUID = "";
-unsigned long lastScanTime = 0;
-bool wifiConnected = false;
-unsigned long lastQRPollTime = 0;
-
 // =================================================================
-// 🔔 BUZZER & SOUND FUNCTIONS
+// 🔔 BUZZER & SOUND
 // =================================================================
-void beep(int count, int durationMs, int freq = 1200) {
+void beep(int count, int durationMs, int freq = 1400) {
   for (int i = 0; i < count; i++) {
     tone(BUZZER_PIN, freq, durationMs);
     digitalWrite(BUZZER_PIN, HIGH);
     delay(durationMs);
     noTone(BUZZER_PIN);
     digitalWrite(BUZZER_PIN, LOW);
-    if (i < count - 1) delay(70);
+    if (i < count - 1) delay(60);
   }
 }
 
 // =================================================================
-// ⚡ RELAY CONTROLLER
+// ⚡ MOTOR / RELAY CONTROL
 // =================================================================
 void setMotor(bool on) {
   pinMode(RELAY_PIN, OUTPUT);
@@ -161,26 +151,35 @@ void showScreen(String title, String line1, String line2, String line3) {
 }
 
 // =================================================================
-// 🌐 WIFI HELPER (Multi-Hotspot: Home Mobile + Shop Wi-Fi)
+// 🌐 NON-BLOCKING WIFI STATUS CHECK (Runs every 8 seconds)
 // =================================================================
 void checkWiFiConnection() {
-  if (wifiMulti.run() == WL_CONNECTED) {
+  unsigned long now = millis();
+  if (now - lastWiFiCheck < 8000) return;
+  lastWiFiCheck = now;
+
+  if (WiFi.status() == WL_CONNECTED) {
     wifiConnected = true;
   } else {
-    wifiConnected = false;
+    // Only attempt reconnect if disconnected
+    if (wifiMulti.run() == WL_CONNECTED) {
+      wifiConnected = true;
+    } else {
+      wifiConnected = false;
+    }
   }
 }
 
 // =================================================================
 // 🔘 WAIT FOR START BUTTON PRESS (Jar Placement Protection)
-// Returns true: Start pressed (or mode is auto). Returns false: Cancel pressed or Timeout.
 // =================================================================
 bool waitForStartButton(String promptTitle, float litresToDispense) {
   if (dispenseMode == "auto") {
-    return true; // Auto mode: start immediately without waiting
+    return true; // Auto mode: start immediately
   }
 
-  Serial.println("\n⏳ WAITING FOR START BUTTON (JAR PLACEMENT)...");
+  Serial.println("
+⏳ WAITING FOR START BUTTON...");
   unsigned long startWaitTime = millis();
   unsigned long lastBlinkTime = 0;
   bool ledState = false;
@@ -188,36 +187,33 @@ bool waitForStartButton(String promptTitle, float litresToDispense) {
 
   while (true) {
     unsigned long now = millis();
-    unsigned long elapsedSec = (now - startWaitTime) / 1000;
-    long remainSec = waitButtonSeconds - elapsedSec;
+    long remainSec = waitButtonSeconds - ((now - startWaitTime) / 1000);
 
     if (remainSec <= 0) {
-      // Timeout: Jar not placed in time
       digitalWrite(LED_START_PIN, LOW);
-      Serial.println("⚠️ TIMEOUT: Start button not pressed in time.");
-      showScreen("TIME KHATAM!", "Jar Nahi Lagaya", "Order Radd Hua", "Paisa Wapas / Refund");
-      beep(3, 200, 700);
-      delay(2500);
+      showScreen("TIME KHATAM!", "Jar Nahi Lagaya", "Order Cancelled", "Paisa Refund!");
+      beep(3, 150, 700);
+      delay(2000);
       return false;
     }
 
-    // Blink Green LED on Start button
-    if (now - lastBlinkTime >= 300) {
+    // Blink Green LED
+    if (now - lastBlinkTime >= 280) {
       lastBlinkTime = now;
       ledState = !ledState;
       digitalWrite(LED_START_PIN, ledState ? HIGH : LOW);
     }
 
-    // Soft alert beep every 3.5 seconds
+    // Soft attention beep every 3.5s
     if (now - lastBeepTime >= 3500) {
       lastBeepTime = now;
-      beep(1, 40, 1800);
+      beep(1, 35, 1800);
     }
 
-    // Update OLED Prompt
-    static unsigned long lastOledRefresh = 0;
-    if (now - lastOledRefresh >= 300) {
-      lastOledRefresh = now;
+    // OLED Prompt
+    static unsigned long lastPromptUpdate = 0;
+    if (now - lastPromptUpdate >= 300) {
+      lastPromptUpdate = now;
       display.clearDisplay();
       display.setTextColor(SSD1306_WHITE);
       display.setTextSize(1);
@@ -234,56 +230,54 @@ bool waitForStartButton(String promptTitle, float litresToDispense) {
       display.println("Pani Girna Shuru");
 
       display.setCursor(2, 48);
-      display.print("Lal=Radd (Bacha ");
+      display.print("Lal=Radd (");
       display.print(remainSec);
       display.println("s)");
       display.display();
     }
 
-    // Check CANCEL Button (GPIO 16)
+    // Cancel Button
     if (digitalRead(BTN_CANCEL_PIN) == LOW) {
-      delay(50); // Debounce
+      delay(40);
       if (digitalRead(BTN_CANCEL_PIN) == LOW) {
         digitalWrite(LED_START_PIN, LOW);
-        Serial.println("❌ USER CANCELLED DISPENSE!");
-        showScreen("RADD KIYA GAYA!", "Lal Button Dabaya", "Order Cancelled", "Paisa Surakshit");
-        beep(3, 150, 700);
-        delay(2200);
+        showScreen("RADD KIYA GAYA", "Lal Button Dabaya", "Order Cancelled", "Paisa Surakshit");
+        beep(2, 150, 700);
+        delay(1800);
         return false;
       }
     }
 
-    // Check START Button (GPIO 4)
+    // Start Button
     if (digitalRead(BTN_START_PIN) == LOW) {
-      delay(50); // Debounce
+      delay(40);
       if (digitalRead(BTN_START_PIN) == LOW) {
-        digitalWrite(LED_START_PIN, HIGH); // Solid ON
-        Serial.println("✅ START BUTTON PRESSED! Jar Confirmed.");
-        beep(2, 80, 1600);
-        showScreen("JAR CONFIRMED", "Pani Chalu Ho Raha..", String(litresToDispense, 1) + " Litres", "Starting Motor...");
-        delay(800);
+        digitalWrite(LED_START_PIN, HIGH);
+        beep(2, 60, 1600);
+        showScreen("JAR DETECTED", "Pani Chalu Ho Raha..", String(litresToDispense, 1) + " Litres", "Starting Pump...");
+        delay(600);
         digitalWrite(LED_START_PIN, LOW);
         return true;
       }
     }
 
-    delay(20);
+    delay(15);
   }
 }
 
 // =================================================================
-// 🔘 CARD QUANTITY SELECTION (1L, 5L, 10L, 20L Push Buttons)
-// Returns chosen litres. If 0.0 -> Cancelled by user.
+// 🔘 QUANTITY SELECTION BUTTONS (1L, 5L, 10L, 20L)
 // =================================================================
 float selectCardQuantity(String custName, float balanceRs) {
   if (!multiQuantityEnable) {
-    return defaultCardLitres; // Admin disabled multi-quantity
+    return defaultCardLitres;
   }
 
-  Serial.println("\n🔘 WAITING FOR QUANTITY SELECTION (1L, 5L, 10L, 20L)...");
+  Serial.println("
+🔘 SELECT QUANTITY: 1L, 5L, 10L, 20L");
   unsigned long startWait = millis();
 
-  while (millis() - startWait < 8000) { // 8 seconds selection window
+  while (millis() - startWait < 8000) {
     unsigned long remainSec = 8 - ((millis() - startWait) / 1000);
 
     static unsigned long lastDisp = 0;
@@ -311,65 +305,64 @@ float selectCardQuantity(String custName, float balanceRs) {
       display.display();
     }
 
-    // Cancel Button
+    // Cancel
     if (digitalRead(BTN_CANCEL_PIN) == LOW) {
       delay(40);
       if (digitalRead(BTN_CANCEL_PIN) == LOW) {
-        showScreen("RADD KIYA GAYA", custName, "Card Process Cancel", "");
-        beep(2, 120, 700);
-        delay(1500);
+        showScreen("RADD KIYA GAYA", custName, "Process Cancelled", "");
+        beep(2, 100, 700);
+        delay(1200);
         return 0.0;
       }
     }
 
-    // 1 Litre Button
+    // 1 Litre
     if (digitalRead(BTN_1L_PIN) == LOW) {
       delay(40);
       if (digitalRead(BTN_1L_PIN) == LOW) {
-        beep(1, 100, 1800);
+        beep(1, 80, 1800);
         showScreen("CHUNA: 1 LITER", custName, "Rupaye: Rs." + String(price1L, 1), "1L Selected");
-        delay(900);
+        delay(700);
         return 1.0;
       }
     }
 
-    // 5 Litres Button
+    // 5 Litres
     if (digitalRead(BTN_5L_PIN) == LOW) {
       delay(40);
       if (digitalRead(BTN_5L_PIN) == LOW) {
-        beep(1, 100, 1800);
+        beep(1, 80, 1800);
         showScreen("CHUNA: 5 LITER", custName, "Rupaye: Rs." + String(price5L, 1), "5L Selected");
-        delay(900);
+        delay(700);
         return 5.0;
       }
     }
 
-    // 10 Litres Button
+    // 10 Litres
     if (digitalRead(BTN_10L_PIN) == LOW) {
       delay(40);
       if (digitalRead(BTN_10L_PIN) == LOW) {
-        beep(1, 100, 1800);
+        beep(1, 80, 1800);
         showScreen("CHUNA: 10 LITER", custName, "Rupaye: Rs." + String(price10L, 1), "10L Selected");
-        delay(900);
+        delay(700);
         return 10.0;
       }
     }
 
-    // 20 Litres Button
+    // 20 Litres (Offer Jar)
     if (digitalRead(BTN_20L_PIN) == LOW) {
       delay(40);
       if (digitalRead(BTN_20L_PIN) == LOW) {
-        beep(1, 100, 1800);
-        showScreen("CHUNA: 20 LITER", custName, "Offer: Rs." + String(price20L, 1), "20L Jar Offer!");
-        delay(900);
+        beep(1, 80, 1800);
+        showScreen("CHUNA: 20 LITER", custName, "Offer: Rs." + String(price20L, 1), "20L Jar Selected!");
+        delay(700);
         return 20.0;
       }
     }
 
-    delay(20);
+    delay(15);
   }
 
-  // Timeout -> defaultCardLitres
   return defaultCardLitres;
 }
 
@@ -381,14 +374,9 @@ float dispenseWater(String customerName, float litresToDispense) {
   flowPulseCount = 0;
   unsigned long targetPulses = (unsigned long)(litresToDispense * pulsesPerLitre);
 
-  Serial.println("\n>>> STARTING WATER DISPENSING <<<");
-  Serial.print("Customer: "); Serial.println(customerName);
-  Serial.print("Litres Target: "); Serial.println(litresToDispense);
-  Serial.print("Pulses Per Litre: "); Serial.println(pulsesPerLitre);
-  Serial.print("Target Pulses: "); Serial.println(targetPulses);
-
-  // Beep start confirmation
-  beep(2, 100, 1500);
+  Serial.println("
+>>> STARTING WATER DISPENSING <<<");
+  beep(2, 80, 1500);
 
   // Turn Motor ON
   setMotor(true);
@@ -397,7 +385,6 @@ float dispenseWater(String customerName, float litresToDispense) {
   unsigned long lastPulseTime = millis();
   unsigned long lastCheckedPulseCount = 0;
 
-  // 🛡️ DRY-RUN / NO-WATER FLOW PROTECTION (Admin Configurable)
   const unsigned long STARTUP_GRACE_MS = (unsigned long)flowStallSeconds * 1000UL;
   const unsigned long MID_STALL_TIMEOUT_MS = (unsigned long)max(3, flowStallSeconds - 1) * 1000UL;
   bool dryRunDetected = false;
@@ -405,46 +392,42 @@ float dispenseWater(String customerName, float litresToDispense) {
   while (flowPulseCount < targetPulses) {
     unsigned long now = millis();
 
-    // Track pulse activity
     if (flowPulseCount > lastCheckedPulseCount) {
       lastCheckedPulseCount = flowPulseCount;
       lastPulseTime = now;
     }
 
-    // 🛑 Emergency Cancel Button pressed while water is flowing
+    // Emergency Stop Button during flow
     if (digitalRead(BTN_CANCEL_PIN) == LOW) {
       delay(40);
       if (digitalRead(BTN_CANCEL_PIN) == LOW) {
-        Serial.println("🛑 EMERGENCY CANCEL PRESSED! Stopping pump immediately.");
+        Serial.println("🛑 EMERGENCY CANCEL PRESSED!");
         break;
       }
     }
 
-    // 1. Initial Dry-Run Check: Motor ON for >flowStallSeconds but no pulses (<5 pulses)!
+    // Dry Run check: Motor ON but no pulses
     if (now - startTime > STARTUP_GRACE_MS && flowPulseCount < 5) {
       dryRunDetected = true;
-      Serial.print("🚨 DRY-RUN DETECTED! No water flow in first ");
-      Serial.print(flowStallSeconds);
-      Serial.println("s. Motor stopped immediately to protect pump!");
+      Serial.println("🚨 DRY RUN: No water flow detected!");
       break;
     }
 
-    // 2. Midway Tank Empty Check: Water was flowing, but stopped for >MID_STALL_TIMEOUT_MS!
+    // Midway Tank Empty
     if (flowPulseCount >= 5 && (now - lastPulseTime > MID_STALL_TIMEOUT_MS)) {
       dryRunDetected = true;
-      Serial.println("🚨 TANK EMPTY MIDWAY! Water flow stopped. Motor stopped to prevent dry running!");
+      Serial.println("🚨 TANK EMPTY MIDWAY!");
       break;
     }
 
-    // 3. Safety timeout: 10 minutes max
+    // 10 min safety cutoff
     if (now - startTime > 10UL * 60UL * 1000UL) {
       dryRunDetected = true;
-      Serial.println("⚠️ Safety timeout reached! Stopping motor.");
       break;
     }
 
-    // Update screen every 250ms
-    if (now - lastDisplayUpdate >= 250) {
+    // Display progress every 200ms
+    if (now - lastDisplayUpdate >= 200) {
       lastDisplayUpdate = now;
       float currentLitres = (float)flowPulseCount / pulsesPerLitre;
       int progressPercent = (int)((currentLitres / litresToDispense) * 100.0);
@@ -453,18 +436,15 @@ float dispenseWater(String customerName, float litresToDispense) {
       display.clearDisplay();
       display.setTextColor(SSD1306_WHITE);
 
-      // Title
       display.setTextSize(1);
       display.setCursor(4, 2);
       display.println("PANI BHAR RAHA HAI");
       display.drawFastHLine(0, 12, 128, SSD1306_WHITE);
 
-      // Customer name
       display.setCursor(0, 16);
       display.print("User: ");
       display.println(customerName.substring(0, 14));
 
-      // Litre counter (Large Text)
       display.setTextSize(2);
       display.setCursor(4, 28);
       display.print(currentLitres, 1);
@@ -472,79 +452,50 @@ float dispenseWater(String customerName, float litresToDispense) {
       display.print(litresToDispense, 1);
       display.print("L");
 
-      // Progress bar outline
       display.drawRect(0, 48, 128, 12, SSD1306_WHITE);
-      // Progress bar fill
       int fillWidth = (progressPercent * 124) / 100;
       if (fillWidth > 0) {
         display.fillRect(2, 50, fillWidth, 8, SSD1306_WHITE);
       }
-
       display.display();
     }
 
-    yield(); // keep ESP32 watchdog happy
+    yield();
   }
 
-  // Turn Motor OFF immediately
+  // Turn Motor OFF
   setMotor(false);
   isDispensing = false;
   float actualLitres = (float)flowPulseCount / pulsesPerLitre;
 
   if (dryRunDetected) {
-    Serial.println(">>> ❌ DRY RUN: PUMP SHUTDOWN (TANK EMPTY OR MOTOR ERROR) <<<");
-    Serial.print("Actual Litres Dispensed: "); Serial.println(actualLitres, 2);
-
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_WHITE);
-    display.setCursor(6, 4);
-    display.println("! TANK KHALI HAI !");
-    display.drawFastHLine(0, 15, 128, SSD1306_WHITE);
-
-    display.setCursor(4, 20);
-    display.println("Paani Nahi Nikla");
-    display.setCursor(4, 34);
-    display.print("Nikla: ");
-    display.print(actualLitres, 1);
-    display.println(" Litre");
-
-    display.setCursor(4, 48);
-    display.println("Paisa Wapas Hoga");
-    display.display();
-
-    // 4 warning beeps
-    beep(4, 150, 750);
-    delay(4000);
+    showScreen("! TANK KHALI HAI !", "Paani Nahi Nikla", "Nikla: " + String(actualLitres, 1) + "L", "Paisa Safe/Refund");
+    beep(4, 120, 750);
+    delay(3000);
     return actualLitres;
   }
 
-  Serial.println(">>> ✅ DISPENSE COMPLETE! MOTOR OFF <<<");
-
-  // Success screen
+  // Dispense complete success screen
   display.clearDisplay();
   display.setTextSize(1);
   display.setCursor(8, 8);
   display.print(litresToDispense, 1);
   display.println(" LITER PURA HUA!");
-
   display.setTextSize(2);
   display.setCursor(14, 24);
   display.println("THANK YOU");
-
   display.setTextSize(1);
   display.setCursor(12, 48);
   display.println("Apna Jar Le Lijie");
   display.display();
 
-  // Long success beep
-  beep(1, 1000, 1800);
-  delay(3500);
+  beep(1, 800, 1800);
+  delay(2500);
   return actualLitres;
 }
 
 // =================================================================
-// 📱 CHECK PENDING QR ORDERS FROM SERVER
+// 📱 CHECK PENDING QR ORDERS (Non-blocking, 3.5s interval, 800ms timeout)
 // =================================================================
 void checkPendingQROrders() {
   if (!wifiConnected || isDispensing) return;
@@ -552,7 +503,7 @@ void checkPendingQROrders() {
   HTTPClient http;
   String checkUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/pending";
   http.begin(checkUrl);
-  http.setTimeout(2500);
+  http.setTimeout(800); // 800ms fast timeout so loop never freezes!
 
   int httpCode = http.GET();
   if (httpCode == 200) {
@@ -567,46 +518,40 @@ void checkPendingQROrders() {
       String buyerName  = doc["customer_name"].as<String>();
       float amtRs       = doc["amount_rs"] | 0.0;
 
-      Serial.println("\n🎉 QR PAYMENT RECEIVED!");
-      Serial.print("Order: "); Serial.println(orderId);
-      Serial.print("Amount: ₹"); Serial.println(amtRs);
-      Serial.print("Litres: "); Serial.println(orderLitres);
-
+      Serial.println("
+🎉 QR PAYMENT RECEIVED!");
       showScreen("QR PAYMENT SUCCESS", "User: " + buyerName, "Amount: Rs." + String(amtRs, 1), "Litres: " + String(orderLitres, 1) + "L");
-      beep(2, 200, 1600);
-      delay(1500);
+      beep(2, 150, 1600);
+      delay(1200);
 
-      // 🔘 JAR SAFETY PROTECTION: Wait for user to place jar & press Green Button!
+      // Jar Safety Check
       bool startPressed = waitForStartButton(buyerName, orderLitres);
 
       if (!startPressed) {
-        // Order Cancelled or Timeout: Notify server to auto-refund buyer!
-        Serial.println("❌ QR Order cancelled before dispensing. Requesting auto-refund...");
         HTTPClient cancelHttp;
         String cancelUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/complete";
         cancelHttp.begin(cancelUrl);
         cancelHttp.addHeader("Content-Type", "application/json");
-        String postBody = "{\"order_id\":\"" + orderId + "\",\"actual_litres\":0.0,\"status\":\"cancelled_user\"}";
+        cancelHttp.setTimeout(1500);
+        String postBody = "{"order_id":"" + orderId + "","actual_litres":0.0,"status":"cancelled_user"}";
         cancelHttp.POST(postBody);
         cancelHttp.end();
 
         showScreen("ORDER CANCELLED", "Jar Nahi Lagaya Gaya", "Paisa Turant Refund!", "");
-        beep(3, 200, 700);
-        delay(3000);
+        beep(2, 150, 700);
+        delay(2500);
         return;
       }
 
-      // Dispense water for QR order (with Dry-Run Auto-Detection)
       float actualDispensed = dispenseWater(buyerName, orderLitres);
 
-      // Notify Server Order Completed or Failed (Tank Dry / Motor Error)
       HTTPClient doneHttp;
       String doneUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/complete";
       doneHttp.begin(doneUrl);
       doneHttp.addHeader("Content-Type", "application/json");
-
+      doneHttp.setTimeout(2000);
       String orderStatus = (actualDispensed >= (orderLitres * 0.8)) ? "completed" : "failed_no_water";
-      String postBody = "{\"order_id\":\"" + orderId + "\",\"actual_litres\":\"" + String(actualDispensed, 1) + "\",\"status\":\"" + orderStatus + "\"}";
+      String postBody = "{"order_id":"" + orderId + "","actual_litres":"" + String(actualDispensed, 1) + "","status":"" + orderStatus + ""}";
       doneHttp.POST(postBody);
       doneHttp.end();
     }
@@ -616,25 +561,20 @@ void checkPendingQROrders() {
 }
 
 // =================================================================
-// 📶 OFFLINE MEMORY & AUTO-SYNC ENGINE (Preferences NVS Flash)
+// 📶 OFFLINE MEMORY & AUTO-SYNC ENGINE
 // =================================================================
-unsigned long lastCardSyncTime = 0;
-
 void syncCardsAndOfflineQueue() {
-  if (!wifiConnected) return;
+  if (!wifiConnected || isDispensing) return;
 
-  // 1. Upload any pending offline dispenses first!
+  // 1. Upload offline records if any
   int offCount = prefs.getInt("off_count", 0);
   if (offCount > 0) {
-    Serial.print("\n📶 Syncing "); Serial.print(offCount); Serial.println(" offline dispenses to server...");
     JsonDocument syncDoc;
     JsonArray records = syncDoc["records"].to<JsonArray>();
 
     for (int i = 0; i < offCount; i++) {
-      String uKey = "off_u_" + String(i);
-      String lKey = "off_l_" + String(i);
-      String cardU = prefs.getString(uKey.c_str(), "");
-      float lit = prefs.getFloat(lKey.c_str(), defaultCardLitres);
+      String cardU = prefs.getString(("off_u_" + String(i)).c_str(), "");
+      float lit = prefs.getFloat(("off_l_" + String(i)).c_str(), defaultCardLitres);
       if (cardU.length() > 0) {
         JsonObject obj = records.add<JsonObject>();
         obj["card_uid"] = cardU;
@@ -649,11 +589,11 @@ void syncCardsAndOfflineQueue() {
     String syncUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/offline-sync";
     syncHttp.begin(syncUrl);
     syncHttp.addHeader("Content-Type", "application/json");
+    syncHttp.setTimeout(2500);
     int syncRes = syncHttp.POST(syncPayload);
     syncHttp.end();
 
     if (syncRes == 200) {
-      Serial.println("✅ Offline records synced successfully. Clearing local queue.");
       for (int i = 0; i < offCount; i++) {
         prefs.remove(("off_u_" + String(i)).c_str());
         prefs.remove(("off_l_" + String(i)).c_str());
@@ -666,7 +606,7 @@ void syncCardsAndOfflineQueue() {
   HTTPClient getHttp;
   String getUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/machine/sync-cards";
   getHttp.begin(getUrl);
-  getHttp.setTimeout(3500);
+  getHttp.setTimeout(2500);
 
   int getCode = getHttp.GET();
   if (getCode == 200) {
@@ -680,14 +620,10 @@ void syncCardsAndOfflineQueue() {
       if (doc["price_per_litre_rs"]) pricePerLitreRs = doc["price_per_litre_rs"].as<float>();
       if (doc["flow_stall_seconds"]) {
         flowStallSeconds = doc["flow_stall_seconds"].as<int>();
-        if (flowStallSeconds < 2) flowStallSeconds = 2;
-        if (flowStallSeconds > 60) flowStallSeconds = 60;
         prefs.putInt("stall_sec", flowStallSeconds);
       }
       if (doc["pulses_per_litre"]) {
         pulsesPerLitre = doc["pulses_per_litre"].as<float>();
-        if (pulsesPerLitre < 50.0) pulsesPerLitre = 50.0;
-        if (pulsesPerLitre > 2000.0) pulsesPerLitre = 2000.0;
         prefs.putFloat("pulse_per_l", pulsesPerLitre);
       }
       if (doc["dispense_mode"]) {
@@ -717,9 +653,12 @@ void syncCardsAndOfflineQueue() {
       prefs.putFloat("def_litres", defaultCardLitres);
       prefs.putFloat("price_per_l", pricePerLitreRs);
 
+      // Save each authorized card into local flash memory
       JsonArray cards = doc["cards"].as<JsonArray>();
       for (JsonObject c : cards) {
         String u = c["uid"].as<String>();
+        u.replace(" ", "");
+        u.toUpperCase();
         String name = c["name"].as<String>();
         float bal = c["balance_rs"].as<float>();
         bool active = (c["status"].as<String>() != "blocked");
@@ -730,7 +669,7 @@ void syncCardsAndOfflineQueue() {
         prefs.putBool(("k_" + u).c_str(), active);
         prefs.putBool(("o_" + u).c_str(), offAllowed);
       }
-      Serial.print("✅ Synced "); Serial.print(cards.size()); Serial.println(" cards & settings for offline security!");
+      Serial.print("✅ Synced "); Serial.print(cards.size()); Serial.println(" cards from Admin!");
     }
   } else {
     getHttp.end();
@@ -738,229 +677,162 @@ void syncCardsAndOfflineQueue() {
 }
 
 // =================================================================
-// 💳 PROCESS CARD SCAN (Online Server Check + Strict Offline Balance)
+// 💳 PROCESS CARD SCAN (Instant local flash check + Graceful online verify)
 // =================================================================
 void handleCardScanned(String uid) {
-  Serial.print("\n💳 CARD SCANNED: "); Serial.println(uid);
+  Serial.print("
+⚡ CARD DETECTED: "); Serial.println(uid);
 
   String uidClean = uid;
   uidClean.replace(" ", "");
   uidClean.toUpperCase();
 
-  // Short tap beep
-  beep(1, 80, 1600);
+  // Instant touch beep (40ms micro-beep)
+  beep(1, 40, 1800);
 
-  showScreen("CARD SCAN HUA", "UID: " + uid, "Verifying Balance...", "Please wait...");
+  // 1. FAST LOCAL FLASH LOOKUP (<1ms)
+  String nKey = "n_" + uidClean;
+  bool isKnownLocally = prefs.isKey(nKey.c_str());
+  String custName     = isKnownLocally ? prefs.getString(nKey.c_str(), "Customer") : "Customer";
+  float localBal      = isKnownLocally ? prefs.getFloat(("b_" + uidClean).c_str(), 0.0) : 0.0;
+  bool isActive       = isKnownLocally ? prefs.getBool(("k_" + uidClean).c_str(), true) : true;
+  bool offAllowed     = isKnownLocally ? prefs.getBool(("o_" + uidClean).c_str(), true) : true;
 
-  checkWiFiConnection();
+  if (isKnownLocally) {
+    showScreen("CARD PEHCHANA", custName, "Bal: Rs." + String(localBal, 1), "Checking...");
+  } else {
+    showScreen("CARD SCAN HUA", "UID: " + uidClean, "Server pe jaanch...", "Please wait...");
+  }
 
-  // ── OFFLINE MODE: STRICT BALANCE & PERMISSION CHECK ──
-  if (!wifiConnected) {
-    Serial.println("⚡ Running in Offline Mode with Local Balance Verification...");
+  // 2. Try Online Server Query if WiFi connected
+  bool onlineSuccess = false;
+  float serverBalRs = localBal;
 
-    // 1. Check if card exists in local flash memory
-    String nKey = "n_" + uidClean;
-    if (!prefs.isKey(nKey.c_str())) {
-      showScreen("OFFLINE: ANJAAN CARD", "Online me pehle", "Ek bar tap karein", "Pani Mana Hai!");
-      beep(3, 200, 700);
-      delay(3000);
-      return;
-    }
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    String checkUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/card/" + uidClean;
+    http.begin(checkUrl);
+    http.setTimeout(1800); // 1.8s max timeout
 
-    String custName = prefs.getString(nKey.c_str(), "Customer");
-    bool isActive = prefs.getBool(("k_" + uidClean).c_str(), true);
-    bool offAllowed = prefs.getBool(("o_" + uidClean).c_str(), true);
-    float localBal = prefs.getFloat(("b_" + uidClean).c_str(), 0.0);
+    int httpCode = http.GET();
+    if (httpCode == 200) {
+      String payload = http.getString();
+      http.end();
 
-    // 2. Check if Blocked
-    if (!isActive) {
-      showScreen("CARD BLOCKED HAI!", custName, "Van Operator Se", "Sampark Karein");
-      beep(3, 250, 700);
-      delay(3500);
-      return;
-    }
+      JsonDocument doc;
+      if (!deserializeJson(doc, payload) && doc["success"] == true) {
+        onlineSuccess = true;
+        custName = doc["data"]["name"].as<String>();
+        String status = doc["data"]["status"] | "active";
+        isActive = (status != "blocked");
+        long balPaise = doc["data"]["balance_paise"] | 0;
+        serverBalRs = (float)balPaise / 100.0;
+        localBal = serverBalRs; // sync locally
 
-    // 3. Check if Offline Access Allowed
-    if (!offAllowed) {
-      showScreen("OFFLINE MANAA HAI", custName, "Sirf Online Chalega", "Pani Mana Hai!");
-      beep(3, 200, 700);
-      delay(3000);
-      return;
-    }
-
-    // 🔘 Multi-Quantity Selection if enabled (1L, 5L, 10L, 20L)
-    float litresToGive = defaultCardLitres;
-    if (multiQuantityEnable) {
-      litresToGive = selectCardQuantity(custName, localBal);
-      if (litresToGive <= 0.0) {
-        return; // Cancelled
+        // Update local flash memory
+        prefs.putString(nKey.c_str(), custName);
+        prefs.putFloat(("b_" + uidClean).c_str(), localBal);
+        prefs.putBool(("k_" + uidClean).c_str(), isActive);
       }
-    }
-    float costRs = getQuantityCost(litresToGive);
-
-    // 4. Check Balance
-    if (localBal < costRs) {
-      showScreen("BALANCE KHATAM!", custName, "Bal: Rs." + String(localBal, 1), "Chahiye: Rs." + String(costRs, 1));
-      beep(3, 200, 800);
-      delay(3500);
+    } else if (httpCode == 404 && !isKnownLocally) {
+      http.end();
+      // True unregistered card (neither on server nor locally)
+      showScreen("UNREGISTERED CARD", "UID: " + uidClean, "Admin me Card jodein", "");
+      beep(3, 120, 700);
+      delay(2000);
       return;
+    } else {
+      http.end();
+      // Server unreachable or connection timeout -> Seamless offline fallback!
+      Serial.println("⚠️ Server unreachable, falling back to local flash memory!");
     }
+  }
 
-    // 🔘 JAR SAFETY CHECK: Wait for start button before deducting balance!
-    if (!waitForStartButton(custName, litresToGive)) {
-      return; // Cancelled, no balance deducted
+  // 3. Fallback to Local Flash Memory Check
+  if (!isKnownLocally && !onlineSuccess) {
+    showScreen("OFFLINE: ANJAAN CARD", "Online WiFi me", "Ek bar tap karein", "");
+    beep(2, 150, 700);
+    delay(2000);
+    return;
+  }
+
+  // Check if Blocked
+  if (!isActive) {
+    showScreen("CARD BLOCKED HAI!", custName, "Plant Operator Se", "Sampark Karein");
+    beep(3, 180, 700);
+    delay(2500);
+    return;
+  }
+
+  // 4. Quantity Selection (1L, 5L, 10L, 20L)
+  float effectiveBal = onlineSuccess ? serverBalRs : localBal;
+  float litresToGive = defaultCardLitres;
+  if (multiQuantityEnable) {
+    litresToGive = selectCardQuantity(custName, effectiveBal);
+    if (litresToGive <= 0.0) {
+      return; // Cancelled by user
     }
+  }
 
-    // 5. Approved -> Deduct locally & queue for auto-sync!
-    float newBal = localBal - costRs;
-    prefs.putFloat(("b_" + uidClean).c_str(), newBal);
+  float costRs = getQuantityCost(litresToGive);
 
+  // 5. Check Balance
+  if (effectiveBal < costRs) {
+    showScreen("BALANCE KAM HAI!", custName, "Bal: Rs." + String(effectiveBal, 1), "Chahiye: Rs." + String(costRs, 1));
+    beep(3, 150, 800);
+    delay(2500);
+    return;
+  }
+
+  // 6. Jar Safety Start Button Check
+  if (!waitForStartButton(custName, litresToGive)) {
+    return; // User cancelled or didn't place jar
+  }
+
+  // 7. Deduct Balance
+  float afterBal = effectiveBal - costRs;
+
+  if (onlineSuccess) {
+    // Deduct on Server
+    HTTPClient dspHttp;
+    String dspUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/dispense";
+    dspHttp.begin(dspUrl);
+    dspHttp.addHeader("Content-Type", "application/json");
+    dspHttp.setTimeout(2500);
+    String postData = "{"card_uid":"" + uidClean + "","litres":" + String(litresToGive, 1) + "}";
+    dspHttp.POST(postData);
+    dspHttp.end();
+  } else {
+    // Queue for Offline Sync
     int offCount = prefs.getInt("off_count", 0);
     prefs.putString(("off_u_" + String(offCount)).c_str(), uidClean);
     prefs.putFloat(("off_l_" + String(offCount)).c_str(), litresToGive);
     prefs.putInt("off_count", offCount + 1);
-
-    showScreen("OFFLINE APPROVED", custName, "Naya Bal: Rs." + String(newBal, 1), String(litresToGive, 0) + "L Paani Chalu");
-    delay(1000);
-
-    float actualDispensed = dispenseWater(custName, litresToGive);
-
-    // 🛡️ OFFLINE DRY-RUN REFUND PROTECTION
-    if (actualDispensed < 0.2) {
-      prefs.putFloat(("b_" + uidClean).c_str(), localBal);
-      if (offCount >= 0) prefs.putInt("off_count", offCount);
-      showScreen("TANK KHALI HAI!", "Paisa Wapas Hua", "Bal: Rs." + String(localBal, 1), "0L Paani Nikla");
-      beep(3, 200, 700);
-      delay(3000);
-    } else if (actualDispensed < (litresToGive * 0.9)) {
-      float actualCost = actualDispensed * pricePerLitreRs;
-      float correctedBal = localBal - actualCost;
-      prefs.putFloat(("b_" + uidClean).c_str(), correctedBal);
-      prefs.putFloat(("off_l_" + String(offCount)).c_str(), actualDispensed);
-      showScreen("PARTIAL DISPENSE", "Nikla: " + String(actualDispensed, 1) + "L", "Bal: Rs." + String(correctedBal, 1), "Bacha Paisa Refund!");
-      delay(3000);
-    }
-    return;
   }
 
-  // ── ONLINE MODE: SERVER QUERY ──
-  HTTPClient http;
-  String uidUrl = uid;
-  uidUrl.replace(" ", "%20");
-  String checkUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/card/" + uidUrl;
-  http.begin(checkUrl);
-  http.setTimeout(4000);
+  // Always update flash memory balance
+  prefs.putFloat(("b_" + uidClean).c_str(), afterBal);
 
-  int httpCode = http.GET();
-  if (httpCode == 200) {
-    String payload = http.getString();
-    http.end();
+  showScreen("APPROVED", custName, "Bal: Rs." + String(afterBal, 1), String(litresToGive, 0) + "L Paani Chalu");
+  delay(800);
 
-    JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, payload);
-    if (!err && doc["success"] == true) {
-      String custName = doc["data"]["name"].as<String>();
-      String custStatus = doc["data"]["status"] | "active";
+  // 8. Dispense Water
+  float actualDispensed = dispenseWater(custName, litresToGive);
 
-      // Check if Card is Blocked
-      if (custStatus == "blocked") {
-        Serial.println("⛔ CARD IS BLOCKED BY ADMIN!");
-        prefs.putBool(("k_" + uidClean).c_str(), false);
-        showScreen("CARD BLOCKED HAI!", custName, "Van Operator Se", "Sampark Karein");
-        beep(3, 250, 700);
-        delay(3500);
-        return;
-      }
-
-      long balPaise = doc["data"]["balance_paise"].as<long>();
-      float balRs = (float)balPaise / 100.0;
-      
-      float litresToGive = doc["default_card_litres"] | defaultCardLitres;
-      defaultCardLitres = litresToGive;
-
-      // 🔘 Multi-Quantity Selection if enabled (1L, 5L, 10L, 20L)
-      if (multiQuantityEnable) {
-        float chosenLitres = selectCardQuantity(custName, balRs);
-        if (chosenLitres <= 0.0) {
-          return; // Cancelled
-        }
-        litresToGive = chosenLitres;
-      }
-
-      long ratePerLitrePaise = doc["paise_per_litre"] | 100;
-      float costRs = getQuantityCost(litresToGive);
-
-      if (balRs >= costRs) {
-        // 🔘 JAR SAFETY CHECK: Wait for start button!
-        if (!waitForStartButton(custName, litresToGive)) {
-          return; // Cancelled, no money deducted
-        }
-
-        HTTPClient dspHttp;
-        String dspUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/dispense";
-        dspHttp.begin(dspUrl);
-        dspHttp.addHeader("Content-Type", "application/json");
-
-        String postData = "{\"card_uid\":\"" + uid + "\",\"litres\":" + String(litresToGive, 1) + "}";
-        int dspCode = dspHttp.POST(postData);
-        dspHttp.end();
-
-        if (dspCode == 200) {
-          float afterBal = balRs - costRs;
-          bool offAllowed = doc["data"]["allow_offline"] | true;
-          prefs.putString(("n_" + uidClean).c_str(), custName);
-          prefs.putFloat(("b_" + uidClean).c_str(), afterBal);
-          prefs.putBool(("k_" + uidClean).c_str(), true);
-          prefs.putBool(("o_" + uidClean).c_str(), offAllowed);
-
-          showScreen("PAYMENT SUCCESS", custName, "Bal: Rs." + String(afterBal, 1), String(litresToGive, 0) + "L Approved!");
-          delay(1000);
-          float actualDispensed = dispenseWater(custName, litresToGive);
-
-          // 🛡️ ONLINE DRY-RUN REFUND PROTECTION
-          if (actualDispensed < (litresToGive * 0.9)) {
-            Serial.println("🚨 Dry-Run in Online Mode! Calling server auto-refund...");
-            HTTPClient refHttp;
-            String refUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/card-dispense-refund";
-            refHttp.begin(refUrl);
-            refHttp.addHeader("Content-Type", "application/json");
-            String refData = "{\"card_uid\":\"" + uid + "\",\"deducted_litres\":" + String(litresToGive, 1) + ",\"actual_litres\":" + String(actualDispensed, 1) + "}";
-            refHttp.POST(refData);
-            refHttp.end();
-
-            float restoredBal = balRs - (actualDispensed * (ratePerLitrePaise / 100.0));
-            prefs.putFloat(("b_" + uidClean).c_str(), restoredBal);
-
-            showScreen("TANK KHALI HAI!", "Nikla: " + String(actualDispensed, 1) + "L", "Card Par Refund Hua!", "Bal: Rs." + String(restoredBal, 1));
-            beep(3, 200, 700);
-            delay(3500);
-          }
-        } else {
-          showScreen("ERROR", "Server dispense fail", "Try again", "");
-          beep(3, 150, 600);
-          delay(2500);
-        }
-      } else {
-        // Insufficient balance
-        showScreen("BALANCE KAM HAI!", custName, "Bal: Rs." + String(balRs, 1), "Chahiye: Rs." + String(costRs, 1));
-        beep(3, 200, 800);
-        delay(3500);
-      }
+  // 9. Dry-run Protection: Restore balance if pump failed
+  if (actualDispensed < 0.2) {
+    prefs.putFloat(("b_" + uidClean).c_str(), effectiveBal);
+    if (onlineSuccess) {
+      HTTPClient refHttp;
+      String refUrl = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/card-dispense-refund";
+      refHttp.begin(refUrl);
+      refHttp.addHeader("Content-Type", "application/json");
+      refHttp.POST("{"card_uid":"" + uidClean + "","deducted_litres":" + String(litresToGive, 1) + ","actual_litres":0.0}");
+      refHttp.end();
     }
-  } else {
-    http.end();
-    // Card not registered on server
-    Serial.println("Card not found on server. Forwarding to bridge...");
-    
-    HTTPClient scanHttp;
-    scanHttp.begin("http://" + String(SERVER_IP) + ":" + String(SERVER_PORT) + "/api/card-scan");
-    scanHttp.addHeader("Content-Type", "application/json");
-    scanHttp.POST("{\"uid\":\"" + uid + "\"}");
-    scanHttp.end();
-
-    showScreen("UNREGISTERED CARD", "UID: " + uid, "Web App pe Card", "Add / Link Karein");
-    beep(2, 250, 700);
-    delay(3000);
+    showScreen("TANK KHALI HAI!", "Paisa Wapas Hua", "Bal: Rs." + String(effectiveBal, 1), "");
+    beep(3, 150, 700);
+    delay(2500);
   }
 }
 
@@ -968,17 +840,15 @@ void handleCardScanned(String uid) {
 // 🚀 ARDUINO SETUP
 // =================================================================
 void setup() {
-  Serial.begin(9600);
-  delay(500);
-  Serial.println("\n============================================");
-  Serial.println("   ASHA RO WATER - SMART DISPENSER SYSTEM   ");
-  Serial.println("============================================");
+  Serial.begin(115200);
+  delay(200);
+  Serial.println("
+=== ASHA RO WATER SYSTEM STARTING ===");
 
-  // 0. Initialize Flash Preferences (Offline Balance & Card Storage)
+  // 0. Preferences
   prefs.begin("asha_ro", false);
-
   pricePerLitreRs     = prefs.getFloat("price_per_l", 1.0);
-  defaultCardLitres   = prefs.getFloat("def_litres", 2.0);
+  defaultCardLitres   = prefs.getFloat("def_litres", 1.0);
   flowStallSeconds    = prefs.getInt("stall_sec", 6);
   pulsesPerLitre      = prefs.getFloat("pulse_per_l", 450.0);
   dispenseMode        = prefs.getString("disp_mode", "button");
@@ -989,19 +859,17 @@ void setup() {
   price10L = prefs.getFloat("p_10l", 10.0);
   price20L = prefs.getFloat("p_20l", 15.0);
 
-  // 1. Setup Relay (Turn OFF immediately)
+  // 1. Relay & Buzzer
   pinMode(RELAY_PIN, OUTPUT);
   setMotor(false);
-
-  // 2. Setup Buzzer
   pinMode(BUZZER_PIN, OUTPUT);
   digitalWrite(BUZZER_PIN, LOW);
 
-  // 3. Setup Flow Sensor (GPIO 34 Interrupt)
+  // 2. Flow Sensor
   pinMode(FLOW_PIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(FLOW_PIN), flowPulseISR, RISING);
 
-  // 4. Setup Push Buttons (Internal Pullups) & Start LED
+  // 3. Push Buttons (Internal Pullups) & Start LED
   pinMode(BTN_START_PIN, INPUT_PULLUP);
   pinMode(BTN_CANCEL_PIN, INPUT_PULLUP);
   pinMode(LED_START_PIN, OUTPUT);
@@ -1012,110 +880,98 @@ void setup() {
   pinMode(BTN_10L_PIN, INPUT_PULLUP);
   pinMode(BTN_20L_PIN, INPUT_PULLUP);
 
-  // 5. Setup OLED Display
+  // 4. OLED Display
   Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
-  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
-    Serial.println("⚠️ OLED display init error!");
-  } else {
-    Serial.println("✅ OLED Connected (0x3C)");
-  }
+  Wire.setClock(400000); // 400kHz Fast I2C Mode!
+  display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
 
-  // Welcome Screen
   showScreen("ASHA RO WATER", "Smart Dispenser", "Starting System...", "Please wait...");
-  beep(1, 150, 1400);
-  delay(1500);
+  beep(1, 100, 1600);
 
-  // 6. Setup RFID (RC522)
+  // 5. Setup RFID (RC522) with MAXIMUM ANTENNA GAIN
   SPI.begin(18, 19, 23, RFID_SS_PIN);
   rfid.PCD_Init();
-  delay(50);
-  Serial.println("✅ RFID RC522 Initialized");
+  delay(30);
+  rfid.PCD_SetAntennaGain(MFRC522::RxGain_max); // ⚡ Boost antenna power to MAX (48dB) for instant long-range read!
+  Serial.println("✅ RFID RC522 initialized with MAX Antenna Gain (48dB)!");
 
-  // 7. Connect WiFi (Auto Home Mobile or Shop Wi-Fi)
+  // 6. Connect WiFi
   WiFi.mode(WIFI_STA);
   wifiMulti.addAP("AJAY KUSHWAHA", "77777777");            // Home Mobile Hotspot
   wifiMulti.addAP("Airtel_Asha Digital Center", "Ajay@6341#"); // Shop / Digital Center Wi-Fi
 
-  showScreen("WIFI CONNECTING", "Searching Hotspot...", "Mobile / Shop Wi-Fi", "Please wait...");
-
   int wifiTries = 0;
-  while (wifiMulti.run() != WL_CONNECTED && wifiTries < 20) {
-    delay(400);
-    Serial.print(".");
+  while (wifiMulti.run() != WL_CONNECTED && wifiTries < 15) {
+    delay(250);
     wifiTries++;
   }
 
   if (WiFi.status() == WL_CONNECTED) {
     wifiConnected = true;
-    String connectedSSID = WiFi.SSID();
-    Serial.println("\n✅ WiFi Connected: " + connectedSSID + " (IP: " + WiFi.localIP().toString() + ")");
-    showScreen("WIFI CONNECTED", "WiFi: " + connectedSSID.substring(0, 14), "IP: " + WiFi.localIP().toString(), "System Ready!");
-    beep(2, 80, 1600);
-    // Initial sync of cards & offline queue
+    showScreen("WIFI CONNECTED", WiFi.SSID().substring(0, 14), WiFi.localIP().toString(), "System Ready!");
+    beep(2, 60, 1800);
+    // Initial sync
     syncCardsAndOfflineQueue();
   } else {
     wifiConnected = false;
-    Serial.println("\n⚠️ WiFi Timeout - Standalone Mode.");
-    showScreen("STANDALONE MODE", "Hotspot Not Found", "Direct Card Access", "System Ready!");
-    beep(1, 300, 1000);
+    showScreen("STANDALONE MODE", "Direct Card Access", "System Ready!", "");
+    beep(1, 200, 1000);
   }
-  delay(2000);
+  delay(1000);
 }
 
 // =================================================================
-// 🔄 MAIN LOOP
+// 🔄 LIGHTNING-FAST MAIN LOOP
 // =================================================================
 void loop() {
   if (isDispensing) return;
 
-  // Check WiFi status periodically
+  // ⚡ 1. RFID SENSING FIRST (Microsecond execution, zero delay)
+  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
+    String uid = "";
+    for (byte i = 0; i < rfid.uid.size; i++) {
+      if (i > 0) uid += " ";
+      if (rfid.uid.uidByte[i] < 0x10) uid += "0";
+      uid += String(rfid.uid.uidByte[i], HEX);
+    }
+    uid.toUpperCase();
+
+    rfid.PICC_HaltA();
+    rfid.PCD_StopCrypto1();
+
+    unsigned long now = millis();
+    // Fast debounce (1.2s instead of 3s)
+    if (uid != lastScannedUID || (now - lastScanTime) > 1200) {
+      lastScannedUID = uid;
+      lastScanTime = now;
+      handleCardScanned(uid);
+    }
+    return;
+  }
+
+  unsigned long now = millis();
+
+  // 2. WiFi Status Check every 8 seconds (non-blocking)
   checkWiFiConnection();
 
-  // 1. Check for Pending QR Orders from Web App (every 1.5 seconds)
-  if (millis() - lastQRPollTime >= 1500) {
-    lastQRPollTime = millis();
+  // 3. QR Order Poll every 3.5 seconds
+  if (now - lastQRPollTime >= 3500) {
+    lastQRPollTime = now;
     checkPendingQROrders();
   }
 
-  // Periodic card balance & offline queue sync (every 45 seconds if connected)
-  if (millis() - lastCardSyncTime >= 45000) {
-    lastCardSyncTime = millis();
+  // 4. Background Sync every 30 seconds
+  if (now - lastCardSyncTime >= 30000) {
+    lastCardSyncTime = now;
     syncCardsAndOfflineQueue();
   }
 
-  // 2. Ready Screen Refresh every 1.5 second
-  static unsigned long lastReadyRefresh = 0;
-  if (millis() - lastReadyRefresh >= 1500) {
-    lastReadyRefresh = millis();
-    String netStatus = wifiConnected ? ("WiFi: " + WiFi.SSID().substring(0, 12)) : "Offline (Direct Card)";
+  // 5. Ready Screen Refresh every 4 seconds
+  if (now - lastOledRefresh >= 4000) {
+    lastOledRefresh = now;
+    String netStatus = (WiFi.status() == WL_CONNECTED) ? ("WiFi: " + WiFi.SSID().substring(0, 12)) : "Offline Ready";
     showScreen("ASHA RO WATER", netStatus, "Scan QR / Tap Card", "Auto Water Dispenser");
   }
 
-  // 3. RFID Card Detection
-  if (!rfid.PICC_IsNewCardPresent() || !rfid.PICC_ReadCardSerial()) {
-    return;
-  }
-
-  // Read Card UID
-  String uid = "";
-  for (byte i = 0; i < rfid.uid.size; i++) {
-    if (i > 0) uid += " ";
-    if (rfid.uid.uidByte[i] < 0x10) uid += "0";
-    uid += String(rfid.uid.uidByte[i], HEX);
-  }
-  uid.toUpperCase();
-
-  rfid.PICC_HaltA();
-  rfid.PCD_StopCrypto1();
-
-  // Debounce card scan
-  unsigned long now = millis();
-  if (uid == lastScannedUID && (now - lastScanTime) < 3000) {
-    return;
-  }
-  lastScannedUID = uid;
-  lastScanTime = now;
-
-  // Process Card
-  handleCardScanned(uid);
+  delay(5); // tiny rest to keep CPU cool and watchdog happy
 }

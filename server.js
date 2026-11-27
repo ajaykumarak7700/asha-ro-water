@@ -246,6 +246,27 @@ function loadDiskDB() {
   }
 }
 
+
+let lastCloudSyncTime = 0;
+async function refreshFromCloudIfNeeded(force = false) {
+  if (!pgPool) return;
+  const now = Date.now();
+  if (!force && now - lastCloudSyncTime < 4000) return;
+  try {
+    const qRes = await pgPool.query("SELECT data FROM app_state WHERE key = 'asha_ro_water_db'");
+    if (qRes && qRes.rows && qRes.rows.length > 0 && qRes.rows[0].data) {
+      const cloudData = qRes.rows[0].data;
+      if (cloudData && Array.isArray(cloudData.customers)) {
+        memoryDB = cloudData;
+        lastCloudSyncTime = now;
+        try { fs.writeFileSync(DB_FILE, JSON.stringify(memoryDB, null, 2)); } catch(e){}
+      }
+    }
+  } catch(e) {}
+}
+
+setInterval(() => { refreshFromCloudIfNeeded(false); }, 5000);
+
 function loadDB() {
   if (memoryDB) return memoryDB;
   memoryDB = loadDiskDB();
@@ -520,7 +541,8 @@ app.get('/api/customers/:id', (req, res) => {
 });
 
 // ── GET customer by CARD UID (ESP32 use karega) ──
-app.get('/api/card/:uid', (req, res) => {
+app.get('/api/card/:uid', async (req, res) => {
+  await refreshFromCloudIfNeeded(true);
   const db = loadDB();
   const rawParam = decodeURIComponent(req.params.uid || '');
   const searchUid = rawParam.replace(/\s+/g, '').toUpperCase();
@@ -1635,7 +1657,8 @@ app.post('/api/card-dispense-refund', (req, res) => {
 });
 
 // ── ESP32 SYNC: Machine downloads authorized cards & balances for offline security ──
-app.get('/api/machine/sync-cards', (req, res) => {
+app.get('/api/machine/sync-cards', async (req, res) => {
+  await refreshFromCloudIfNeeded(true);
   const db = loadDB();
   const cards = db.customers
     .filter(c => c.card_uid)

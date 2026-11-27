@@ -5,11 +5,24 @@
   "wallets": {
     "2172fcb0-4cbb-46f4-a8ee-d1eb5c1fe851": 0,
     "61c91d8d-95e5-4c1a-9c42-3bca39452696": 0,
-    "6d0324fb-094c-463a-80ba-87753ee08adc": 47400
+    "6d0324fb-094c-463a-80ba-87753ee08adc": 47900
   },
   "settings": {
+    "price_tiers": {
+      "1": 1,
+      "5": 5,
+      "10": 10,
+      "20": 15
+    },
+    "dispense_mode": "auto",
+    "auto_refund_upi": true,
+    "razorpay_key_id": "rzp_live_U42Ce8kw6IIhK9",
+    "pulses_per_litre": 450,
+    "flow_stall_seconds": 6,
     "default_card_litres": 1,
-    "order_expiry_seconds": 90
+    "wait_button_seconds": 60,
+    "order_expiry_seconds": 90,
+    "multi_quantity_enabled": false
   },
   "customers": [
     {
@@ -20,6 +33,7 @@
       "address": "MADHUBANI",
       "card_uid": "A4 81 E0 B6",
       "created_at": "26/11/2026, 8:36:09 pm",
+      "allow_offline": false,
       "razorpay_qr_id": "qr_U4qv6Iw3941oP1",
       "razorpay_qr_image": "https://rzp.io/rzp/MgZo0by"
     },
@@ -45,6 +59,43 @@
     }
   ],
   "transactions": [
+    {
+      "id": "RZ_S3ObOoCB",
+      "note": "[EXPIRED - Water Not Dispensed] Razorpay UPI: ₹1 -> 1L Water",
+      "type": "DISPENSE",
+      "status": "EXPIRED",
+      "card_uid": "RAZORPAY_QR",
+      "created_at": "26/11/2026, 10:28:24 pm",
+      "customer_id": "RAZORPAY_BUYER",
+      "payment_ref": "pay_U4sVJhS3ObOoCB",
+      "amount_paise": 100,
+      "customer_name": "Razorpay User",
+      "customer_phone": ""
+    },
+    {
+      "id": "RZ_eKi3u5lS",
+      "note": "[EXPIRED - Water Not Dispensed] Razorpay UPI: ₹2 -> 2L Water",
+      "type": "DISPENSE",
+      "status": "EXPIRED",
+      "card_uid": "RAZORPAY_QR",
+      "created_at": "26/11/2026, 10:27:04 pm",
+      "customer_id": "RAZORPAY_BUYER",
+      "payment_ref": "pay_U4sTuMeKi3u5lS",
+      "amount_paise": 200,
+      "customer_name": "Razorpay User",
+      "customer_phone": ""
+    },
+    {
+      "id": "REC_LHTcc6bu",
+      "note": "Online UPI Direct Recharge (Pay ID: pay_U4rr7SLHTcc6bu)",
+      "type": "RECHARGE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "26/11/2026, 9:50:20 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "pay_U4rr7SLHTcc6bu",
+      "amount_paise": 500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
     {
       "id": "REF_C9E28F38",
       "note": "💵 Cash Refund: ₹20 wapas kiya (Order ORD_B5183262)",
@@ -312,6 +363,38 @@
       "resolved_at": "26/11/2026, 6:43:16 pm",
       "created_at_ms": 1795698761792,
       "customer_name": "Test Offline User"
+    },
+    {
+      "id": "RZ_eKi3u5lS",
+      "litres": 2,
+      "status": "auto_refunded",
+      "amount_rs": 2,
+      "refund_id": "rfnd_U4sVXcH9z52nzA",
+      "created_at": "26/11/2026, 10:27:04 pm",
+      "expired_at": "26/11/2026, 10:28:34 pm",
+      "payment_id": "pay_U4sTuMeKi3u5lS",
+      "refunded_at": "26/11/2026, 10:28:36 pm",
+      "created_at_ms": 1795712224112,
+      "customer_name": "Razorpay User",
+      "expire_reason": "ESP32 Machine Offline / Timeout (> 90s)",
+      "refund_method": "RAZORPAY_UPI",
+      "customer_phone": ""
+    },
+    {
+      "id": "RZ_S3ObOoCB",
+      "litres": 1,
+      "status": "auto_refunded",
+      "amount_rs": 1,
+      "refund_id": "rfnd_U4sWyGwH4xlfBl",
+      "created_at": "26/11/2026, 10:28:24 pm",
+      "expired_at": "26/11/2026, 10:29:55 pm",
+      "payment_id": "pay_U4sVJhS3ObOoCB",
+      "refunded_at": "26/11/2026, 10:29:57 pm",
+      "created_at_ms": 1795712304282,
+      "customer_name": "Razorpay User",
+      "expire_reason": "ESP32 Machine Offline / Timeout (> 90s)",
+      "refund_method": "RAZORPAY_UPI",
+      "customer_phone": ""
     }
   ],
   "cashback_wallets": {
