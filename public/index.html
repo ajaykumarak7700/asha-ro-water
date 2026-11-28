@@ -121,11 +121,7 @@ input:focus,select:focus{border-color:var(--blue)}
         <input type="password" id="adminPass" placeholder="पासवर्ड दर्ज करें" required style="width:100%;padding:11px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:15px;outline:none" autocomplete="current-password">
       </div>
       <button type="submit" id="loginBtn" style="width:100%;background:#1a56db;color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:0.2s">🔐 सुरक्षित लॉगिन करें</button>
-      <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:10px 12px;margin-top:14px;font-size:12px;color:#475569;text-align:center;line-height:1.5">
-        💡 <b>लॉगिन क्रेडेंशियल:</b><br>
-        यूजर आईडी: <b>7700828989</b> या <b>admin</b><br>
-        पासवर्ड: <b>Ajay@6341#</b> या <b>1234</b>
-      </div>
+      
     </form>
     <div style="margin-top:22px;font-size:11px;color:#9ca3af;font-weight:500">ASHA ENTERPRISES • Cloud Protected System</div>
   </div>
@@ -1000,7 +996,7 @@ input:focus,select:focus{border-color:var(--blue)}
 <script>
 // ── SECURE ADMIN AUTH (Server-Side Verified) ──
 function getAdminToken() {
-  return sessionStorage.getItem("asha_admin_token") || "";
+  return sessionStorage.getItem("asha_admin_token") || localStorage.getItem("asha_admin_token") || "";
 }
 
 async function checkAdminAuth() {

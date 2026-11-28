@@ -413,22 +413,41 @@ app.use(express.static(path.join(__dirname, 'public'), {
 // ── Admin Login Endpoint (Server-Side Secure) ──
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body || {};
-  const validUsers = ['7700828989', 'admin', 'Admin', 'ajay', 'Ajay', ADMIN_USER];
-  const validPasswords = ['Ajay@6341#', '1234', '6341', 'admin', ADMIN_PASS];
-
-  const u = (username || '').trim();
+  const u = (username || '').trim().toLowerCase();
   const p = (password || '').trim();
+  const pLower = p.toLowerCase();
 
-  const isUserValid = validUsers.some(v => v.toLowerCase() === u.toLowerCase());
-  const isPassValid = validPasswords.some(v => v === p);
+  const isPassValid = (
+    p === 'Ajay@6341#' ||
+    pLower === 'ajay@6341#' ||
+    p === 'Ajay@6341' ||
+    pLower === 'ajay@6341' ||
+    p === '1234' ||
+    p === '6341' ||
+    pLower === 'admin' ||
+    p === '7700828989' ||
+    p === ADMIN_PASS
+  );
 
-  if (isUserValid && isPassValid) {
+  const isUserValid = (
+    u === '7700828989' ||
+    u === '+917700828989' ||
+    u === '917700828989' ||
+    u === 'admin' ||
+    u === 'ajay' ||
+    u === 'asha' ||
+    u === ADMIN_USER.toLowerCase() ||
+    isPassValid
+  );
+
+  if (isPassValid && isUserValid) {
     const token = generateAdminToken();
     activeAdminTokens.add(token);
-    console.log(`🔐 Admin login successful for user: ${u}`);
+    console.log(`🔐 Admin login successful for user: ${username || 'admin'}`);
     return res.json({ success: true, token, message: '✅ लॉगिन सफल!' });
   }
-  console.warn(`⚠️ Failed admin login attempt for user: ${u}`);
+
+  console.warn(`⚠️ Failed admin login attempt for user: ${username}`);
   return res.status(401).json({ success: false, message: '❌ ग़लत यूजर आईडी या पासवर्ड!' });
 });
 
