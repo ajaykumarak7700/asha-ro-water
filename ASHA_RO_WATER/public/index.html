@@ -97,7 +97,75 @@ input:focus,select:focus{border-color:var(--blue)}
 .amt-btn{padding:10px;border:1px solid var(--border);border-radius:8px;background:#f9fafb;font-weight:700;color:var(--blue);cursor:pointer;font-size:14px}
 .amt-btn:hover,.amt-btn.sel{background:var(--blue);color:#fff;border-color:var(--blue)}
 /* ---- MOBILE ---- */
-@media(max-width:768px){.sidebar{display:none}.layout{flex-direction:column}}
+/* ---- RESPONSIVE DESKTOP & MOBILE APP STYLES ---- */
+.mobile-bottom-nav { display: none !important; }
+.mob-only { display: none !important; }
+
+@media(max-width: 768px) {
+  .mob-only { display: inline-flex !important; }
+  .sidebar { display: none !important; }
+  .layout { flex-direction: column !important; width: 100% !important; }
+  .topbar { position: sticky; top: 0; z-index: 100; padding: 10px 14px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .topbar h1 { font-size: 16px; }
+  .topbar .actions .btn { padding: 6px 10px; font-size: 12px; }
+  .page { padding: 12px 10px 85px 10px !important; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px; margin-bottom: 16px; }
+  .stat { padding: 12px; border-radius: 10px; }
+  .stat .icon { font-size: 20px; margin-bottom: 4px; }
+  .stat .val { font-size: 18px; font-weight: 800; }
+  .stat .lbl { font-size: 11px; }
+
+  /* Mobile App Bottom Navigation Bar */
+  .mobile-bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 62px !important;
+    background: #ffffff !important;
+    border-top: 1px solid #e5e7eb !important;
+    box-shadow: 0 -3px 12px rgba(0,0,0,0.08) !important;
+    z-index: 9999 !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    padding: 2px 4px max(env(safe-area-inset-bottom, 2px), 2px) !important;
+  }
+
+  .mob-nav-btn {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: none !important;
+    border: none !important;
+    color: #64748b !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    gap: 3px !important;
+    cursor: pointer !important;
+    flex: 1 !important;
+    height: 100% !important;
+    padding: 4px 0 !important;
+    -webkit-tap-highlight-color: transparent !important;
+    transition: color 0.15s ease !important;
+  }
+
+  .mob-nav-btn.active {
+    color: #1a56db !important;
+    font-weight: 800 !important;
+  }
+
+  .mob-icon {
+    font-size: 20px !important;
+    line-height: 1 !important;
+  }
+
+  /* Settings Page grid adapts to 1 column on phone */
+  #page-settings > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+}
 </style>
 </head>
 <body>
@@ -121,7 +189,6 @@ input:focus,select:focus{border-color:var(--blue)}
         <input type="password" id="adminPass" placeholder="पासवर्ड दर्ज करें" required style="width:100%;padding:11px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:15px;outline:none" autocomplete="current-password">
       </div>
       <button type="submit" id="loginBtn" style="width:100%;background:#1a56db;color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:0.2s">🔐 सुरक्षित लॉगिन करें</button>
-      
     </form>
     <div style="margin-top:22px;font-size:11px;color:#9ca3af;font-weight:500">ASHA ENTERPRISES • Cloud Protected System</div>
   </div>
@@ -1054,6 +1121,9 @@ function showPage(name){
   document.getElementById('page-'+name).classList.add('active');
   document.querySelector(`.nav-btn[onclick="showPage('${name}')"]`).classList.add('active');
   document.getElementById('pageTitle').textContent = pageTitles[name];
+  document.querySelectorAll('.mob-nav-btn').forEach(b => b.classList.remove('active'));
+  const mobBtn = document.querySelector(`.mob-nav-btn[data-page="${name}"]`);
+  if (mobBtn) mobBtn.classList.add('active');
   if(name==='dashboard') { loadDashboard(); loadTankStatus(); loadDiagnostics();checkCloudStatus(); }
   if(name==='customers'||name==='cards') loadCustomers();
   if(name==='transactions') loadTransactions();
@@ -1522,84 +1592,8 @@ function printMachineQR(){
       <div style="font-size:12px;color:#64748b;margin-top:4px">Nozzle ke niche bartan lagayein</div>
       <div style="font-size:10px;color:#94a3b8;margin-top:10px">${url}</div>
     </div>
-    <script>setTimeout(()=>{window.print();window.close();},300);<\/script>
-  
-<!-- MOBILE APP BOTTOM NAVIGATION BAR (Visible ONLY on mobile <= 768px) -->
-<div class="mobile-bottom-nav">
-  <button class="mob-nav-btn active" data-page="dashboard" onclick="showPage('dashboard')">
-    <span class="mob-icon">📊</span>
-    <span class="mob-label">Dashboard</span>
-  </button>
-  <button class="mob-nav-btn" data-page="customers" onclick="showPage('customers')">
-    <span class="mob-icon">👥</span>
-    <span class="mob-label">Customers</span>
-  </button>
-  <button class="mob-nav-btn" data-page="cards" onclick="showPage('cards')">
-    <span class="mob-icon">💳</span>
-    <span class="mob-label">Cards</span>
-  </button>
-  <button class="mob-nav-btn" data-page="transactions" onclick="showPage('transactions')">
-    <span class="mob-icon">📋</span>
-    <span class="mob-label">Passbook</span>
-  </button>
-  <button class="mob-nav-btn" data-page="settings" onclick="showPage('settings')">
-    <span class="mob-icon">⚙️</span>
-    <span class="mob-label">Settings</span>
-  </button>
-</div>
-
-<!-- MOBILE MORE MENU MODAL (Bottom Sheet) -->
-<div class="overlay" id="mobileMoreModal" onclick="closeModal('mobileMoreModal')">
-  <div class="modal" onclick="event.stopPropagation()" style="border-radius:20px 20px 0 0;padding:0;overflow:hidden">
-    <div class="modal-hdr" style="padding:14px 18px">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:20px">💧</span>
-        <h3 style="margin:0;font-size:16px;font-weight:800">ASHA RO WATER Menu</h3>
-      </div>
-      <button class="btn btn-light btn-sm" onclick="closeModal('mobileMoreModal')">✕</button>
-    </div>
-    <div style="padding:14px">
-      <button onclick="showPage('balance');closeModal('mobileMoreModal')" style="display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;font-size:14px;font-weight:700;color:#1e293b;margin-bottom:10px;cursor:pointer;text-align:left">
-        <span style="font-size:22px">💰</span>
-        <div>
-          <div>Balance Enquiry</div>
-          <div style="font-size:11px;font-weight:500;color:#64748b">कार्ड बैलेंस व रिचार्ज जांचें</div>
-        </div>
-      </button>
-
-      <button onclick="showPage('qrgen');closeModal('mobileMoreModal')" style="display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;font-size:14px;font-weight:700;color:#1e293b;margin-bottom:10px;cursor:pointer;text-align:left">
-        <span style="font-size:22px">🔳</span>
-        <div>
-          <div>QR Generator</div>
-          <div style="font-size:11px;font-weight:500;color:#64748b">कस्टमर QR स्टिकर व प्रिंट शीट</div>
-        </div>
-      </button>
-
-      <a href="/" target="_blank" style="display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;font-size:14px;font-weight:700;color:#0284c7;margin-bottom:10px;text-decoration:none">
-        <span style="font-size:22px">🏠</span>
-        <div>
-          <div>Customer View (Water Storefront)</div>
-          <div style="font-size:11px;font-weight:500;color:#0284c7">ग्राहक पोर्टल लाइव देखें</div>
-        </div>
-      </a>
-
-      <button onclick="logoutAdmin();closeModal('mobileMoreModal')" style="display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;font-size:14px;font-weight:700;color:#dc2626;cursor:pointer;text-align:left">
-        <span style="font-size:22px">🚪</span>
-        <div>
-          <div>Logout Admin</div>
-          <div style="font-size:11px;font-weight:500;color:#ef4444">सुरक्षित बाहर निकलें</div>
-        </div>
-      </button>
-    </div>
-  </div>
-</div>
-
-<script>
-function openMobileMenu() {
-  document.getElementById('mobileMoreModal').classList.add('show');
-}
-</script>
-</body></html>`);
+    ${'<' + 'script>setTimeout(()=>{window.print();window.close();},300);<' + '/script>'}
+  </body></html>`);
 }
 
 async function loadQR(){
@@ -1701,9 +1695,9 @@ function printQRFrom(src, url){
       <img src="${src}" alt="Recharge QR">
     </div>
   </div>
-  <script>window.onload=()=>{ window.print(); }<\/script>
-</body>
-</html>`);
+  ${'<' + 'script>window.onload=()=>{ window.print(); };<' + '/script>'}
+<\/body>
+<\/html>`);
 }
 function downloadQR(){downloadQRFrom(document.getElementById('qrImage').src,'QR');}
 function downloadQRModal(){downloadQRFrom(document.getElementById('qrModalImg').src,'QR');}
@@ -1832,9 +1826,9 @@ async function print2SidedCard(cId){
       </div>
     </div>
   </div>
-  <script>window.onload=()=>{ window.print(); }<\/script>
-</body>
-</html>`);
+  ${'<' + 'script>window.onload=()=>{ window.print(); };<' + '/script>'}
+<\/body>
+<\/html>`);
 }
 
 // ── ADD CUSTOMER ──
@@ -2643,6 +2637,11 @@ function beShowResult(c, paise_per_litre, txns) {
   document.getElementById('beResultCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function openMobileMenu() {
+  const m = document.getElementById("mobileMoreModal");
+  if (m) m.classList.add("show");
+}
+
 // ── INIT ──
 loadDashboard();loadCustomers();loadPrice();loadTankStatus();loadDiagnostics();
 setInterval(() => {
@@ -2724,10 +2723,6 @@ setInterval(() => {
   </div>
 </div>
 
-<script>
-function openMobileMenu() {
-  document.getElementById('mobileMoreModal').classList.add('show');
-}
-</script>
+
 </body>
 </html>
