@@ -13,5 +13,9 @@
     "qrcode": "^1.5.3",
     "razorpay": "^2.9.8",
     "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "jsqr": "^1.4.0",
+    "pngjs": "^7.0.0"
   }
 }
