@@ -5,9 +5,11 @@
   "wallets": {
     "2172fcb0-4cbb-46f4-a8ee-d1eb5c1fe851": 0,
     "61c91d8d-95e5-4c1a-9c42-3bca39452696": 0,
-    "6d0324fb-094c-463a-80ba-87753ee08adc": 42600
+    "6d0324fb-094c-463a-80ba-87753ee08adc": 39600
   },
   "settings": {
+    "auto_mode": true,
+    "auto_litres": 20,
     "cashback_rs": 1,
     "price_tiers": {
       "1": 1,
@@ -18,6 +20,7 @@
       "20": 15
     },
     "dispense_mode": "button",
+    "auto_amount_rs": 15,
     "machine_status": "active",
     "auto_refund_upi": true,
     "cashback_litres": 20,
@@ -26,7 +29,7 @@
     "pulses_per_litre": 450,
     "flow_stall_seconds": 6,
     "default_card_litres": 1,
-    "tank_current_litres": 919.4,
+    "tank_current_litres": 854.5,
     "wait_button_seconds": 30,
     "order_expiry_seconds": 45,
     "tank_alert_threshold": 100,
@@ -68,6 +71,40 @@
     }
   ],
   "transactions": [
+    {
+      "id": "RZ_2urjQicQ",
+      "note": "Razorpay UPI: ₹20 -> 20L Water",
+      "type": "DISPENSE",
+      "card_uid": "RAZORPAY_QR",
+      "created_at": "28/11/2026, 12:03:07 pm",
+      "customer_id": "RAZORPAY_BUYER",
+      "payment_ref": "pay_U5Uv2y2urjQicQ",
+      "amount_paise": 2000,
+      "customer_name": "Razorpay User",
+      "customer_phone": ""
+    },
+    {
+      "id": "DSP_941D6190",
+      "note": "20 Liter Dispensed (+₹1 Cashback Earned)",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "28/11/2026, 12:01:32 pm",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_941D6190",
+      "amount_paise": 1500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
+    {
+      "id": "DSP_4BC9E489",
+      "note": "20 Liter Dispensed (+₹1 Cashback Earned)",
+      "type": "DISPENSE",
+      "card_uid": "9E 52 FD 03",
+      "created_at": "28/11/2026, 11:56:57 am",
+      "customer_id": "6d0324fb-094c-463a-80ba-87753ee08adc",
+      "payment_ref": "DSP_4BC9E489",
+      "amount_paise": 1500,
+      "customer_name": "AJAY KUSHWAHA"
+    },
     {
       "id": "RZ_62H4z5WC",
       "note": "Razorpay UPI: ₹5 -> 5L Water",
@@ -894,9 +931,23 @@
       "customer_name": "Razorpay User",
       "customer_phone": "",
       "actual_dispensed_litres": 17.82444
+    },
+    {
+      "id": "RZ_2urjQicQ",
+      "litres": 20,
+      "status": "completed",
+      "amount_rs": 20,
+      "created_at": "28/11/2026, 12:03:07 pm",
+      "payment_id": "pay_U5Uv2y2urjQicQ",
+      "started_at": "28/11/2026, 12:03:08 pm",
+      "completed_at": "28/11/2026, 12:03:15 pm",
+      "created_at_ms": 1795847587040,
+      "customer_name": "Razorpay User",
+      "customer_phone": "",
+      "actual_dispensed_litres": 24.88667
     }
   ],
   "cashback_wallets": {
-    "6d0324fb-094c-463a-80ba-87753ee08adc": 0
+    "6d0324fb-094c-463a-80ba-87753ee08adc": 200
   }
 }

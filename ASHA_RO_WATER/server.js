@@ -1690,7 +1690,16 @@ app.get('/api/admin/expired-orders', (req, res) => {
   if (changed) saveDB(db);
 
   const expiredList = (db.pending_orders || [])
-    .filter(o => o.status === 'expired' || o.status === 'failed_no_water' || o.status === 'cancelled_user' || o.status === 'auto_refunded')
+    .filter(o => {
+      const includeAll = (req.query.all === '1' || req.query.all === 'true');
+      if (includeAll) {
+        return o.status === 'expired' || o.status === 'failed_no_water' || o.status === 'cancelled_user' || o.status === 'auto_refunded' || o.status === 'refunded_cash';
+      }
+      if (o.status === 'auto_refunded' || o.status === 'refunded_cash' || o.status === 'completed' || o.status === 'dismissed') {
+        return false;
+      }
+      return (o.status === 'expired' || o.status === 'failed_no_water' || o.status === 'cancelled_user');
+    })
     .sort((a, b) => (b.created_at_ms || 0) - (a.created_at_ms || 0));
 
   res.json({

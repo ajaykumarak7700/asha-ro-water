@@ -263,34 +263,19 @@ input:focus,select:focus{border-color:var(--blue)}
         </div>
       </div>
 
-      <!-- EXPIRED / OFFLINE ORDERS (WATER NOT DISPENSED) ALERT CARD -->
-      <div id="expiredOrdersCard" class="card" style="display:none;border:2px solid #ef4444;background:#fff5f5;margin-bottom:20px;box-shadow:0 10px 25px rgba(239,68,68,0.12)">
-        <div class="card-hdr" style="background:#fee2e2;border-bottom:1.5px solid #fca5a5;display:flex;align-items:center;justify-content:space-between;padding:14px 18px">
-          <div style="display:flex;align-items:center;gap:12px">
-            <span style="font-size:24px;animation:pulse 1.2s infinite">⚠️</span>
+      <!-- SLIM ALERT BAR FOR UNRESOLVED ORDERS (NON-INTRUSIVE) -->
+      <div id="expiredOrdersCard" style="display:none;background:#fef2f2;border:1.5px solid #f87171;border-radius:10px;padding:10px 16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(239,68,68,0.08)">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:20px">⚠️</span>
             <div>
-              <h3 style="color:#991b1b;font-size:15px;font-weight:800;margin:0">मशीन ऑफ़लाइन आर्डर (Water Not Dispensed)</h3>
-              <p style="font-size:12px;color:#7f1d1d;margin:2px 0 0">ग्राहक ने पेमेंट किया लेकिन मशीन ऑफ़लाइन होने से पानी नहीं निकला। पेमेंट आईडी मिलाकर कैश वापस दें या अभी पानी निकलवाएं।</p>
+              <span style="color:#991b1b;font-size:13px;font-weight:800" id="expiredCountBadge">1 अनसुलझा आर्डर</span>
+              <span style="font-size:12px;color:#7f1d1d;margin-left:8px">मशीन ऑफ़लाइन होने से पानी नहीं निकला (ऑटो-रिफंड पेंडिंग)</span>
             </div>
           </div>
-          <span id="expiredCountBadge" style="background:#dc2626;color:#fff;font-size:12px;font-weight:800;padding:5px 12px;border-radius:20px">0 Orders</span>
-        </div>
-        <div class="card-body" style="padding:0">
-          <div class="tbl-wrap">
-            <table style="background:#fff">
-              <thead>
-                <tr style="background:#fef2f2;color:#991b1b">
-                  <th>Time</th>
-                  <th>Order ID / Pay Ref</th>
-                  <th>Customer</th>
-                  <th>Amount</th>
-                  <th>Litres</th>
-                  <th>Status</th>
-                  <th>Action (कैश वापस / तुरंत पानी)</th>
-                </tr>
-              </thead>
-              <tbody id="expiredOrdersBody"></tbody>
-            </table>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-primary btn-sm" onclick="showPage('transactions'); switchTxnTab('failed')" style="font-size:12px;padding:5px 12px">📋 आर्डर देखें व हल करें</button>
+            <button class="btn btn-light btn-sm" onclick="document.getElementById('expiredOrdersCard').style.display='none'" style="color:#64748b" title="Hide">✕</button>
           </div>
         </div>
       </div>
@@ -424,11 +409,45 @@ input:focus,select:focus{border-color:var(--blue)}
     <!-- TRANSACTIONS -->
     <div class="page" id="page-transactions">
       <div class="card">
-        <div class="card-hdr"><h3>📋 All Transactions</h3><input class="search-bar" placeholder="🔍 Search..." oninput="filterTxns(this.value)"></div>
-        <div class="card-body" style="padding:0">
+        <div class="card-hdr" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button id="tabBtnAllTxns" class="btn btn-primary btn-sm" onclick="switchTxnTab('all')">📋 All Transactions</button>
+            <button id="tabBtnFailedOrders" class="btn btn-light btn-sm" onclick="switchTxnTab('failed')" style="border:1px solid #cbd5e1">
+              ⚠️ वॉटर नॉट डिस्पेंस्ड / रिफंड लॉग
+              <span id="failedTabBadge" style="display:none;background:#dc2626;color:#fff;font-size:11px;padding:2px 7px;border-radius:12px;margin-left:4px"></span>
+            </button>
+          </div>
+          <input class="search-bar" id="txnSearchInput" placeholder="🔍 Search..." oninput="filterTxns(this.value)">
+        </div>
+
+        <!-- Tab 1: All Regular Transactions -->
+        <div id="txnTabContentAll" class="card-body" style="padding:0">
           <div class="tbl-wrap"><table><thead>
             <tr><th>#</th><th>Time</th><th>Customer</th><th>Type</th><th>Amount</th><th>Reference</th></tr>
           </thead><tbody id="txnBody"></tbody></table></div>
+        </div>
+
+        <!-- Tab 2: Failed & Refunded Orders Log -->
+        <div id="txnTabContentFailed" class="card-body" style="display:none;padding:0">
+          <div style="background:#eff6ff;border-bottom:1px solid #bfdbfe;padding:12px 18px;font-size:12px;color:#1e40af">
+            💡 <b>ज़रूरी जानकारी:</b> ऑनलाइन QR (PhonePe/GPay/Paytm) से पेमेंट करने पर पानी न निकले तो <b>बैंक खाते में ऑटो-रिफंड तुरंत 24h में हो जाता है</b>। कार्ड पेमेंट्स का बैलेंस मशीन तुरंत वापस कर देती है। इसलिए ग्राहक को अपनी जेब से कैश देने की बिल्कुल ज़रूरत नहीं है, जब तक कि ऑटो-रिफंड फेल न हुआ हो।
+          </div>
+          <div class="tbl-wrap">
+            <table style="background:#fff">
+              <thead>
+                <tr style="background:#f8fafc;color:#475569">
+                  <th>Time</th>
+                  <th>Order ID / Pay Ref</th>
+                  <th>Customer</th>
+                  <th>Amount</th>
+                  <th>Litres</th>
+                  <th>Status (रिफंड स्थिति)</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="failedOrdersBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1760,76 +1779,92 @@ async function dismissDetectedCard() {
 // ── EXPIRED / OFFLINE ORDERS ADMIN REAL-TIME HANDLING ──
 let lastSeenExpiredCount = 0;
 
-async function checkExpiredOrdersAdmin() {
+function switchTxnTab(tab) {
+  const isAll = (tab === 'all');
+  const allEl = document.getElementById('txnTabContentAll');
+  const failEl = document.getElementById('txnTabContentFailed');
+  const btnAll = document.getElementById('tabBtnAllTxns');
+  const btnFail = document.getElementById('tabBtnFailedOrders');
+
+  if (allEl) allEl.style.display = isAll ? 'block' : 'none';
+  if (failEl) failEl.style.display = isAll ? 'none' : 'block';
+  if (btnAll) btnAll.className = isAll ? 'btn btn-primary btn-sm' : 'btn btn-light btn-sm';
+  if (btnFail) btnFail.className = isAll ? 'btn btn-light btn-sm' : 'btn btn-primary btn-sm';
+
+  if (!isAll) {
+    loadFailedOrdersHistory();
+  }
+}
+
+async function loadFailedOrdersHistory() {
   if (!getAdminToken()) return;
   try {
-    const res = await fetch('/api/admin/expired-orders').then(r => r.json());
+    const res = await fetch('/api/admin/expired-orders?all=1').then(r => r.json());
+    const tbody = document.getElementById('failedOrdersBody');
+    if (!tbody) return;
     if (res.success && res.orders && res.orders.length > 0) {
-      document.getElementById('expiredOrdersCard').style.display = 'block';
-      document.getElementById('expiredCountBadge').textContent = `${res.orders.length} Order${res.orders.length > 1 ? 's' : ''}`;
-
-      const tbody = document.getElementById('expiredOrdersBody');
       tbody.innerHTML = res.orders.map(o => {
         const isDryRun = o.status === 'failed_no_water';
         const isRefunded = o.status === 'auto_refunded' || o.refund_id;
         const isCancelled = o.status === 'cancelled_user';
+        const isCashRefunded = o.status === 'refunded_cash';
 
         let statusBadge = '';
         if (isRefunded) {
-          statusBadge = `<span class="badge" style="background:#dbeafe;color:#1e40af;font-weight:700">💳 रिफंड जारी (Auto-Refunded)</span><br><small style="color:#2563eb;font-weight:600;font-size:11px">24h के अंदर बैंक में CR होगा<br><span style="font-family:monospace">Ref: ${o.refund_id || '-'}</span></small>`;
+          statusBadge = '<span class="badge" style="background:#dbeafe;color:#1e40af;font-weight:700">💳 बैंक ऑटो-रिफंडेड</span><br><small style="color:#2563eb;font-weight:600;font-size:11px">बैंक में वापस भेजा गया<br><span style="font-family:monospace">Ref: ' + (o.refund_id || '-') + '</span></small>';
+        } else if (isCashRefunded) {
+          statusBadge = '<span class="badge" style="background:#dcfce7;color:#15803d;font-weight:700">💵 कैश दिया गया</span>';
         } else if (isDryRun) {
-          statusBadge = `<span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700">🚨 टंकी खाली / मोटर एरर</span><br><small style="color:#b91c1c;font-weight:600">${o.actual_dispensed_litres || 0}L Nikla (Pump Stopped)</small>`;
+          statusBadge = '<span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700">🚨 टंकी खाली / मोटर एरर</span><br><small style="color:#b91c1c;font-weight:600">' + (o.actual_dispensed_litres || 0) + 'L Nikla</small>';
         } else if (isCancelled) {
-          statusBadge = `<span class="badge" style="background:#fef3c7;color:#92400e;font-weight:700">🛑 ऑर्डर कैंसिल हुआ</span><br><small style="color:#b45309;font-size:10.5px">बटन टाइमआउट / रद्द</small>`;
+          statusBadge = '<span class="badge" style="background:#fef3c7;color:#92400e;font-weight:700">🛑 कैंसिल हुआ</span><br><small style="color:#b45309;font-size:10.5px">बटन टाइमआउट</small>';
         } else {
-          statusBadge = `<span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700">❌ पानी नहीं निकला</span><br><small style="color:#dc2626;font-size:10.5px">Machine Offline Timeout</small>`;
+          statusBadge = '<span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700">❌ पानी नहीं निकला</span><br><small style="color:#dc2626;font-size:10.5px">Machine Offline</small>';
         }
 
-        const actionButtons = isRefunded ? `
-          <span style="color:#1e40af;font-weight:700;font-size:12px;background:#eff6ff;padding:5px 10px;border-radius:6px;border:1px solid #bfdbfe">✅ Auto-Refunded (24h CR)</span>
-          <button class="btn btn-light btn-sm" style="color:#64748b" onclick="handleResolveOrder('${o.id}', 'dismiss')" title="Dismiss / Clear">✕</button>
-        ` : `
-          <button class="btn btn-success btn-sm" style="font-weight:700;box-shadow:0 2px 4px rgba(5,122,85,0.2)" onclick="handleResolveOrder('${o.id}', 'cash_refund', ${o.amount_rs})">💵 Cash Refund Diya (₹${o.amount_rs})</button>
-          <button class="btn btn-primary btn-sm" style="font-weight:700" onclick="handleResolveOrder('${o.id}', 'retry_dispense', ${o.amount_rs}, ${o.litres})">🚰 Abhi Paani Nikalo (${o.litres}L)</button>
-          <button class="btn btn-light btn-sm" style="color:#64748b" onclick="handleResolveOrder('${o.id}', 'dismiss')" title="Dismiss / Clear">✕</button>
-        `;
+        const actionButtons = (isRefunded || isCashRefunded) ? 
+          '<span style="color:#1e40af;font-weight:700;font-size:12px;background:#eff6ff;padding:4px 8px;border-radius:6px;border:1px solid #bfdbfe">✔ सेटल्ड (Settled)</span>' +
+          '<button class="btn btn-light btn-sm" style="color:#64748b;margin-left:4px" onclick="handleResolveOrder(\'' + o.id + '\', \'dismiss\')" title="Dismiss / Clear">✕</button>' : 
+          '<button class="btn btn-primary btn-sm" style="font-weight:700" onclick="handleResolveOrder(\'' + o.id + '\', \'retry_dispense\', ' + o.amount_rs + ', ' + o.litres + ')">🚰 अभी पानी निकालो (' + o.litres + 'L)</button>' +
+          '<button class="btn btn-success btn-sm" style="font-weight:700;margin-left:4px" onclick="handleResolveOrder(\'' + o.id + '\', \'cash_refund\', ' + o.amount_rs + ')">💵 कैश दिया (₹' + o.amount_rs + ')</button>' +
+          '<button class="btn btn-light btn-sm" style="color:#64748b;margin-left:4px" onclick="handleResolveOrder(\'' + o.id + '\', \'dismiss\')" title="Dismiss / Clear">✕</button>';
 
-        return `
-        <tr style="background:${isRefunded ? '#f0f9ff' : '#fffaf0'}">
-          <td style="font-size:12px;color:#64748b">${o.created_at ? o.created_at.substring(0, 16) : '-'}</td>
-          <td>
-            <b style="font-family:monospace;color:#1e3a5f">${o.id}</b>
-            ${o.payment_id ? `<br><small style="color:#0284c7;font-family:monospace">${o.payment_id}</small>` : ''}
-          </td>
-          <td>
-            <b style="color:#0f172a">${o.customer_name || 'Customer'}</b>
-            ${o.customer_phone ? `<br><small style="color:#64748b">📞 ${o.customer_phone}</small>` : ''}
-          </td>
-          <td><b style="color:${isRefunded ? '#2563eb' : '#dc2626'};font-size:15px">₹${o.amount_rs}</b></td>
-          <td><b style="color:#0369a1">${o.litres}L</b></td>
-          <td>${statusBadge}</td>
-          <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-            ${actionButtons}
-          </td>
-        </tr>`;
+        return '<tr style="background:' + ((isRefunded || isCashRefunded) ? '#f8fafc' : '#fffaf0') + '">' +
+          '<td style="font-size:12px;color:#64748b">' + (o.created_at ? o.created_at.substring(0, 16) : '-') + '</td>' +
+          '<td><b style="font-family:monospace;color:#1e3a5f">' + o.id + '</b>' + (o.payment_id ? '<br><small style="color:#0284c7;font-family:monospace">' + o.payment_id + '</small>' : '') + '</td>' +
+          '<td><b style="color:#0f172a">' + (o.customer_name || 'Customer') + '</b>' + (o.customer_phone ? '<br><small style="color:#64748b">📞 ' + o.customer_phone + '</small>' : '') + '</td>' +
+          '<td><b style="color:' + ((isRefunded || isCashRefunded) ? '#2563eb' : '#dc2626') + ';font-size:15px">₹' + o.amount_rs + '</b></td>' +
+          '<td><b style="color:#0369a1">' + o.litres + 'L</b></td>' +
+          '<td>' + statusBadge + '</td>' +
+          '<td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' + actionButtons + '</td>' +
+        '</tr>';
       }).join('');
+    } else {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#64748b">Koi failed ya refund order nahi mila. Sabhi orders theek se complete huye hain.</td></tr>';
+    }
+  } catch(e) {
+    console.error('loadFailedOrdersHistory error:', e);
+  }
+}
 
-      if (res.orders.length > lastSeenExpiredCount) {
-        lastSeenExpiredCount = res.orders.length;
-        try {
-          const ctx = new (window.AudioContext || window.webkitAudioContext)();
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.frequency.setValueAtTime(440, ctx.currentTime);
-          gain.gain.setValueAtTime(0.1, ctx.currentTime);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.25);
-        } catch(e) {}
+async function checkExpiredOrdersAdmin() {
+  if (!getAdminToken()) return;
+  try {
+    const res = await fetch('/api/admin/expired-orders').then(r => r.json());
+    const alertCard = document.getElementById('expiredOrdersCard');
+    const badge = document.getElementById('expiredCountBadge');
+    const tabBadge = document.getElementById('failedTabBadge');
+
+    if (res.success && res.orders && res.orders.length > 0) {
+      if (alertCard) alertCard.style.display = 'block';
+      if (badge) badge.textContent = res.orders.length + ' अनसुलझा आर्डर (Action Required)';
+      if (tabBadge) {
+        tabBadge.style.display = 'inline-block';
+        tabBadge.textContent = res.orders.length;
       }
     } else {
-      document.getElementById('expiredOrdersCard').style.display = 'none';
+      if (alertCard) alertCard.style.display = 'none';
+      if (tabBadge) tabBadge.style.display = 'none';
       lastSeenExpiredCount = 0;
     }
   } catch (e) {
