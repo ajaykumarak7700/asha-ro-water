@@ -235,7 +235,9 @@ function getLitresForAmount(amt, db) {
     }
   }
   const rate_per_litre = (db.price?.paise_per_litre || 100) / 100.0;
-  return Math.round((amt / rate_per_litre) * 10) / 10;
+  const calcL = Math.round((amt / rate_per_litre) * 10) / 10;
+  // 🛑 HARD SAFETY CAP: Never exceed 20L max per transaction!
+  return Math.min(20.0, calcL);
 }
 
 function getCostForLitres(litres, db) {
@@ -1098,7 +1100,8 @@ app.post('/api/razorpay/verify-payment', (req, res) => {
 
     const db = loadDB();
     const rate_per_litre = (db.price.paise_per_litre || 100) / 100.0;
-    const litres = Math.round((amt / rate_per_litre) * 10) / 10;
+    const rawLitres = Math.round((amt / rate_per_litre) * 10) / 10;
+    const litres = Math.min(20.0, rawLitres); // 🛑 Max 20L Safety Cutoff
 
     const buyerName = customer_name ? customer_name.trim() : (customer_id ? (db.customers.find(c => c.id === customer_id)?.name || 'QR Customer') : 'QR Customer');
 
@@ -1201,7 +1204,8 @@ app.post('/api/razorpay/webhook', (req, res) => {
 
         if (!db.pending_orders.find(o => o.payment_id === payment_id)) {
           const rate_per_litre = (db.price.paise_per_litre || 100) / 100.0;
-          const litres = Math.round((amount_rs / rate_per_litre) * 10) / 10;
+          const rawLitres = Math.round((amount_rs / rate_per_litre) * 10) / 10;
+          const litres = Math.min(20.0, rawLitres); // 🛑 Max 20L Safety Cutoff
 
           const orderId = 'RZ_' + payment_id.slice(-8);
           db.pending_orders.push({
@@ -1274,7 +1278,8 @@ app.post('/api/cashfree/webhook', (req, res) => {
       const db = loadDB();
       if (!db.pending_orders.find(o => o.payment_id === payment_id)) {
         const rate_per_litre = (db.price.paise_per_litre || 100) / 100.0;
-        const litres = Math.round((amount_rs / rate_per_litre) * 10) / 10;
+        const rawLitres = Math.round((amount_rs / rate_per_litre) * 10) / 10;
+        const litres = Math.min(20.0, rawLitres); // 🛑 Max 20L Safety Cutoff
 
         const orderId = 'CF_' + payment_id.slice(-8);
         db.pending_orders.push({
@@ -1330,7 +1335,8 @@ app.post('/api/qr-buy-water', (req, res) => {
   const db = loadDB();
   const rate_per_litre = (db.price.paise_per_litre || 100) / 100.0;
   // Calculate litres based on rate set in website
-  const litres = Math.round((amt / rate_per_litre) * 10) / 10; // 1 decimal place
+  const rawLitres = Math.round((amt / rate_per_litre) * 10) / 10;
+  const litres = Math.min(20.0, rawLitres); // 🛑 Max 20L Safety Cutoff
 
   const orderId = 'ORD_' + uuidv4().substring(0, 8).toUpperCase();
   const buyerName = customer_name ? customer_name.trim() : (customer_id ? (db.customers.find(c => c.id === customer_id)?.name || 'QR Customer') : 'QR Customer');

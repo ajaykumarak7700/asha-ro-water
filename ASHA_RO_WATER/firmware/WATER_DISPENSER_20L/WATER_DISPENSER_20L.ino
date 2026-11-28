@@ -658,6 +658,11 @@ void handlePreSelection(float preselectedLitres) {
 // 🌊 WATER DISPENSER CONTROLLER (Accurate Flow & Dry-Run Shield)
 // =================================================================
 float dispenseWater(String customerName, float litresToDispense) {
+  // 🛑 20L MAX JAR CUTOFF: Galti se 200 ya 300 Rs payment hone par bhi 20L se jyada nahi girega!
+  if (litresToDispense > 20.0) {
+    Serial.printf("⚠️ SAFETY CAP: Requested %.1fL exceeds 20L jar limit! Capped to 20.0L\n", litresToDispense);
+    litresToDispense = 20.0;
+  }
   isDispensing = true;
   flowPulseCount = 0;
   unsigned long targetPulses = (unsigned long)(litresToDispense * pulsesPerLitre);
@@ -866,6 +871,7 @@ bool checkPendingQROrders() {
       if (doc["has_order"] == true && !isMachineInMaintenance) {
         String orderId    = doc["order_id"].as<String>();
         float orderLitres = doc["litres"].as<float>();
+        if (orderLitres > 20.0) orderLitres = 20.0; // 🛑 20L Max limit (Jar protection)
         String buyerName  = doc["customer_name"].as<String>();
         float amtRs       = doc["amount_rs"] | 0.0;
 
