@@ -176,7 +176,10 @@ function generateAdminToken() {
 }
 
 function verifyAdmin(req) {
-  return true;
+  const authHeader = req.headers['authorization'] || req.headers['x-admin-token'] || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return false;
+  return activeAdminTokens.has(token) || token === STATIC_MASTER_TOKEN;
 }
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE  = path.join(DATA_DIR, 'db.json');
@@ -404,8 +407,26 @@ app.use(express.static(path.join(__dirname, 'public'), {
 }));
 
 // ── Admin Login Endpoint (Server-Side Secure) ──
+// ── Admin Login Endpoint (Server-Side Secure) ──
 app.post('/api/admin/login', (req, res) => {
-  return res.json({ success: true, token: STATIC_MASTER_TOKEN, message: '✅ लॉगिन सफल!' });
+  const { username, password } = req.body || {};
+  const u = (username || '').trim().toLowerCase();
+  const p = (password || '').trim();
+
+  // Allowed User IDs: admin, 7700828989, ajay, or custom environment variable
+  const allowedUsers = ['admin', '7700828989', 'ajay'];
+  if (process.env.ADMIN_USER) allowedUsers.push(process.env.ADMIN_USER.trim().toLowerCase());
+
+  const targetPass = (process.env.ADMIN_PASS || 'Ajay@6341#').trim();
+
+  if (allowedUsers.includes(u) && p === targetPass) {
+    activeAdminTokens.add(STATIC_MASTER_TOKEN);
+    console.log(`🔐 Admin logged in successfully as: [${u}]`);
+    return res.json({ success: true, token: STATIC_MASTER_TOKEN, message: '✅ लॉगिन सफल!' });
+  }
+
+  console.warn(`⚠️ Failed admin login attempt for user: [${u}]`);
+  return res.status(401).json({ success: false, message: '❌ गलत यूजर आईडी या पासवर्ड! कृपया सही पासवर्ड दर्ज करें।' });
 });
 
 // ── Admin Check Session Endpoint ──
@@ -2523,6 +2544,20 @@ app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'water.ht
 app.get('/water', (req, res) => res.sendFile(path.join(__dirname, 'public', 'water.html')));
 
 // ── Admin Management Panel ──
+
+// ── PWA Service Worker & Manifest Endpoints ──
+app.get('/sw.js', (req, res) => {
+  res.set('Content-Type', 'application/javascript');
+  res.set('Service-Worker-Allowed', '/');
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(__dirname, 'public', 'sw.js'));
+});
+
+app.get('/manifest.json', (req, res) => {
+  res.set('Content-Type', 'application/manifest+json');
+  res.sendFile(path.join(__dirname, 'public', 'manifest.json'));
+});
+
 app.get('/admin', (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.set('Pragma', 'no-cache');

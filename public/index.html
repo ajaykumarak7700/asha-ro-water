@@ -11,6 +11,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Asha RO Water">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <title>ASHA RO WATER — Admin Dashboard</title>
 <style>
 :root{--blue:#1a56db;--green:#057a55;--red:#c81e1e;--orange:#d03801;--bg:#f3f4f6;--card:#fff;--border:#e5e7eb;--text:#111827;--muted:#6b7280}
@@ -172,23 +175,26 @@ input:focus,select:focus{border-color:var(--blue)}
 
 <!-- SECURE ADMIN LOGIN OVERLAY -->
 <div id="adminLoginOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg, #0b1f3a 0%, #1e3a5f 100%);z-index:99999;display:none;align-items:center;justify-content:center;padding:20px">
-  <div style="background:#fff;border-radius:18px;max-width:390px;width:100%;padding:32px 28px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);text-align:center">
+  <div style="background:#fff;border-radius:20px;max-width:400px;width:100%;padding:32px 28px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);text-align:center">
     <div style="font-size:46px;margin-bottom:8px">🚰</div>
     <h2 style="font-size:22px;color:#1e3a5f;font-weight:800;margin-bottom:4px">ASHA RO WATER</h2>
-    <div style="font-size:13px;color:#6b7280;margin-bottom:22px;font-weight:600">सुरक्षित एडमिन पोर्टल लॉगिन</div>
+    <div style="font-size:13px;color:#6b7280;margin-bottom:20px;font-weight:600">सुरक्षित एडमिन पोर्टल लॉगिन</div>
 
-    <div id="loginAlert" style="display:none;background:#fde8e8;color:#9b1c1c;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;text-align:left;font-weight:600;border:1px solid #f8b4b4"></div>
+    <div id="loginAlert" style="display:none;background:#fde8e8;color:#9b1c1c;padding:11px 14px;border-radius:10px;font-size:13px;margin-bottom:16px;text-align:left;font-weight:600;border:1px solid #f8b4b4"></div>
 
     <form onsubmit="handleAdminLogin(event)" style="text-align:left">
       <div style="margin-bottom:16px">
         <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:6px">यूजर आईडी (User ID)</label>
-        <input type="text" id="adminUser" placeholder="User ID दर्ज करें" required style="width:100%;padding:11px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:15px;outline:none" autocomplete="username">
+        <input type="text" id="adminUser" placeholder="User ID दर्ज करें (उदा. admin या 7700828989)" required style="width:100%;padding:12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:15px;outline:none" autocomplete="username">
       </div>
       <div style="margin-bottom:22px">
         <label style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:6px">पासवर्ड (Password)</label>
-        <input type="password" id="adminPass" placeholder="पासवर्ड दर्ज करें" required style="width:100%;padding:11px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:15px;outline:none" autocomplete="current-password">
+        <div style="position:relative">
+          <input type="password" id="adminPass" placeholder="पासवर्ड दर्ज करें" required style="width:100%;padding:12px 42px 12px 14px;border:1.5px solid #d1d5db;border-radius:10px;font-size:15px;outline:none" autocomplete="current-password">
+          <button type="button" onclick="togglePassVisibility()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:#64748b;padding:4px" title="Show/Hide Password">👁️</button>
+        </div>
       </div>
-      <button type="submit" id="loginBtn" style="width:100%;background:#1a56db;color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:0.2s">🔐 सुरक्षित लॉगिन करें</button>
+      <button type="submit" id="loginBtn" style="width:100%;background:#1a56db;color:#fff;border:none;padding:13px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:0.2s;box-shadow:0 4px 12px rgba(26,86,219,0.3)">🔐 सुरक्षित लॉगिन करें</button>
     </form>
     <div style="margin-top:22px;font-size:11px;color:#9ca3af;font-weight:500">ASHA ENTERPRISES • Cloud Protected System</div>
   </div>
@@ -240,6 +246,7 @@ input:focus,select:focus{border-color:var(--blue)}
     <div class="topbar">
       <h1 id="pageTitle">📊 Dashboard</h1>
       <div class="actions">
+        <button class="btn btn-warning pwa-install-btn" onclick="installPWA()" style="display:none;font-weight:700">📲 App Install</button>
         <button class="btn btn-primary" onclick="openAddCustomer()">➕ New Customer</button>
         <button class="btn btn-success" onclick="openRecharge()">⚡ Recharge</button>
       </div>
@@ -1061,26 +1068,90 @@ input:focus,select:focus{border-color:var(--blue)}
 </div>
 
 <script>
-// ── SECURE ADMIN AUTH ──
+// ── SECURE ADMIN AUTH WITH SESSION PERSISTENCE ──
+function togglePassVisibility() {
+  const inp = document.getElementById('adminPass');
+  if (inp) inp.type = (inp.type === 'password') ? 'text' : 'password';
+}
+
 function getAdminToken() {
-  return sessionStorage.getItem("asha_admin_token") || localStorage.getItem("asha_admin_token") || "Ajay@6341#";
+  return localStorage.getItem("asha_admin_token") || sessionStorage.getItem("asha_admin_token") || "";
 }
 
 async function checkAdminAuth() {
-  sessionStorage.setItem("asha_admin_token", "Ajay@6341#");
-  localStorage.setItem("asha_admin_token", "Ajay@6341#");
+  const token = getAdminToken();
   const overlay = document.getElementById("adminLoginOverlay");
-  if (overlay) overlay.style.display = "none";
-  loadDashboard();
+  if (!token) {
+    if (overlay) overlay.style.display = "flex";
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/admin/check-session", {
+      headers: { "Authorization": "Bearer " + token }
+    }).then(r => r.json()).catch(() => null);
+
+    if (res && res.success) {
+      if (overlay) overlay.style.display = "none";
+      loadDashboard();
+    } else {
+      localStorage.removeItem("asha_admin_token");
+      sessionStorage.removeItem("asha_admin_token");
+      if (overlay) overlay.style.display = "flex";
+    }
+  } catch (err) {
+    if (token) {
+      if (overlay) overlay.style.display = "none";
+      loadDashboard();
+    } else {
+      if (overlay) overlay.style.display = "flex";
+    }
+  }
 }
 
 async function handleAdminLogin(e) {
   if (e && e.preventDefault) e.preventDefault();
-  sessionStorage.setItem("asha_admin_token", "Ajay@6341#");
-  localStorage.setItem("asha_admin_token", "Ajay@6341#");
-  const overlay = document.getElementById("adminLoginOverlay");
-  if (overlay) overlay.style.display = "none";
-  loadDashboard();
+  const user = (document.getElementById("adminUser").value || "").trim();
+  const pass = (document.getElementById("adminPass").value || "").trim();
+  const alertEl = document.getElementById("loginAlert");
+  const btn = document.getElementById("loginBtn");
+
+  if (!user || !pass) {
+    alertEl.textContent = "कृपया यूजर आईडी और पासवर्ड दोनों दर्ज करें।";
+    alertEl.style.display = "block";
+    return false;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "⏳ जाँच हो रही है...";
+  alertEl.style.display = "none";
+
+  try {
+    const res = await fetch("/api/admin/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user, password: pass })
+    }).then(r => r.json());
+
+    if (res && res.success && res.token) {
+      localStorage.setItem("asha_admin_token", res.token);
+      sessionStorage.setItem("asha_admin_token", res.token);
+      document.getElementById("adminLoginOverlay").style.display = "none";
+      btn.disabled = false;
+      btn.textContent = "🔐 सुरक्षित लॉगिन करें";
+      loadDashboard();
+    } else {
+      alertEl.textContent = (res && res.message) || "गलत यूजर आईडी या पासवर्ड! कृपया सही पासवर्ड दर्ज करें।";
+      alertEl.style.display = "block";
+      btn.disabled = false;
+      btn.textContent = "🔐 सुरक्षित लॉगिन करें";
+    }
+  } catch(err) {
+    alertEl.textContent = "लॉगिन सर्वर से कनेक्ट नहीं हो सका: " + err.message;
+    alertEl.style.display = "block";
+    btn.disabled = false;
+    btn.textContent = "🔐 सुरक्षित लॉगिन करें";
+  }
   return false;
 }
 
@@ -1092,10 +1163,46 @@ function logoutAdmin() {
       headers: { "Authorization": "Bearer " + token }
     }).catch(() => {});
   }
+  localStorage.removeItem("asha_admin_token");
   sessionStorage.removeItem("asha_admin_token");
   document.getElementById("adminUser").value = "";
   document.getElementById("adminPass").value = "";
+  const alertEl = document.getElementById("loginAlert");
+  if (alertEl) alertEl.style.display = "none";
   document.getElementById("adminLoginOverlay").style.display = "flex";
+}
+
+// ── PWA SERVICE WORKER REGISTRATION & INSTALL PROMPT ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .then(reg => console.log('📱 PWA Service Worker Registered! Scope:', reg.scope))
+      .catch(err => console.log('PWA SW error:', err));
+  });
+}
+
+let deferredPwaPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPwaPrompt = e;
+  document.querySelectorAll('.pwa-install-btn').forEach(b => b.style.display = 'inline-flex');
+});
+
+window.addEventListener('appinstalled', () => {
+  console.log('🎉 PWA Installed successfully!');
+  deferredPwaPrompt = null;
+  document.querySelectorAll('.pwa-install-btn').forEach(b => b.style.display = 'none');
+});
+
+function installPWA() {
+  if (deferredPwaPrompt) {
+    deferredPwaPrompt.prompt();
+    deferredPwaPrompt.userChoice.then(() => {
+      deferredPwaPrompt = null;
+    });
+  } else {
+    alert('📱 ऐप इंस्टॉल करने के लिए:\n1. अपने ब्राउज़र के 3 डॉट्स (⋮) या शेयर आइकॉन (📤) पर क्लिक करें।\n2. "Add to Home screen" (ऐप इंस्टॉल करें) चुनें।');
+  }
 }
 
 // Initial session check on load
