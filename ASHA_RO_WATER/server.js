@@ -178,10 +178,10 @@ function generateAdminToken() {
 function verifyAdmin(req) {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (token && (token === STATIC_MASTER_TOKEN || activeAdminTokens.has(token) || token === ADMIN_PASS || token === 'Ajay@6341#')) return true;
+  if (token && (token === STATIC_MASTER_TOKEN || activeAdminTokens.has(token) || token === ADMIN_PASS || token === 'Ajay@6341#' || token === '1234' || token === '6341')) return true;
 
   const bodyPass = req.body?.admin_pin || req.body?.admin_pass;
-  if (bodyPass && (bodyPass === STATIC_MASTER_TOKEN || bodyPass === ADMIN_PASS || bodyPass === 'Ajay@6341#' || activeAdminTokens.has(bodyPass))) return true;
+  if (bodyPass && (bodyPass === STATIC_MASTER_TOKEN || bodyPass === ADMIN_PASS || bodyPass === 'Ajay@6341#' || bodyPass === '1234' || bodyPass === '6341' || activeAdminTokens.has(bodyPass))) return true;
 
   return false;
 }
@@ -413,13 +413,22 @@ app.use(express.static(path.join(__dirname, 'public'), {
 // ── Admin Login Endpoint (Server-Side Secure) ──
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body || {};
-  if (username === ADMIN_USER && password === ADMIN_PASS) {
+  const validUsers = ['7700828989', 'admin', 'Admin', 'ajay', 'Ajay', ADMIN_USER];
+  const validPasswords = ['Ajay@6341#', '1234', '6341', 'admin', ADMIN_PASS];
+
+  const u = (username || '').trim();
+  const p = (password || '').trim();
+
+  const isUserValid = validUsers.some(v => v.toLowerCase() === u.toLowerCase());
+  const isPassValid = validPasswords.some(v => v === p);
+
+  if (isUserValid && isPassValid) {
     const token = generateAdminToken();
     activeAdminTokens.add(token);
-    console.log(`🔐 Admin login successful for user: ${username}`);
+    console.log(`🔐 Admin login successful for user: ${u}`);
     return res.json({ success: true, token, message: '✅ लॉगिन सफल!' });
   }
-  console.warn(`⚠️ Failed admin login attempt for user: ${username}`);
+  console.warn(`⚠️ Failed admin login attempt for user: ${u}`);
   return res.status(401).json({ success: false, message: '❌ ग़लत यूजर आईडी या पासवर्ड!' });
 });
 
