@@ -2653,5 +2653,81 @@ setInterval(() => {
   }
 }, 8000);
 </script>
+
+<!-- MOBILE APP BOTTOM NAVIGATION BAR (Visible ONLY on mobile <= 768px) -->
+<div class="mobile-bottom-nav">
+  <button class="mob-nav-btn active" data-page="dashboard" onclick="showPage('dashboard')">
+    <span class="mob-icon">📊</span>
+    <span class="mob-label">Dashboard</span>
+  </button>
+  <button class="mob-nav-btn" data-page="customers" onclick="showPage('customers')">
+    <span class="mob-icon">👥</span>
+    <span class="mob-label">Customers</span>
+  </button>
+  <button class="mob-nav-btn" data-page="cards" onclick="showPage('cards')">
+    <span class="mob-icon">💳</span>
+    <span class="mob-label">Cards</span>
+  </button>
+  <button class="mob-nav-btn" data-page="transactions" onclick="showPage('transactions')">
+    <span class="mob-icon">📋</span>
+    <span class="mob-label">Passbook</span>
+  </button>
+  <button class="mob-nav-btn" data-page="settings" onclick="showPage('settings')">
+    <span class="mob-icon">⚙️</span>
+    <span class="mob-label">Settings</span>
+  </button>
+</div>
+
+<!-- MOBILE MORE MENU MODAL (Bottom Sheet) -->
+<div class="overlay" id="mobileMoreModal" onclick="closeModal('mobileMoreModal')">
+  <div class="modal" onclick="event.stopPropagation()" style="border-radius:20px 20px 0 0;padding:0;overflow:hidden">
+    <div class="modal-hdr" style="padding:14px 18px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:20px">💧</span>
+        <h3 style="margin:0;font-size:16px;font-weight:800">ASHA RO WATER Menu</h3>
+      </div>
+      <button class="btn btn-light btn-sm" onclick="closeModal('mobileMoreModal')">✕</button>
+    </div>
+    <div style="padding:14px">
+      <button onclick="showPage('balance');closeModal('mobileMoreModal')" style="display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;font-size:14px;font-weight:700;color:#1e293b;margin-bottom:10px;cursor:pointer;text-align:left">
+        <span style="font-size:22px">💰</span>
+        <div>
+          <div>Balance Enquiry</div>
+          <div style="font-size:11px;font-weight:500;color:#64748b">कार्ड बैलेंस व रिचार्ज जांचें</div>
+        </div>
+      </button>
+
+      <button onclick="showPage('qrgen');closeModal('mobileMoreModal')" style="display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;font-size:14px;font-weight:700;color:#1e293b;margin-bottom:10px;cursor:pointer;text-align:left">
+        <span style="font-size:22px">🔳</span>
+        <div>
+          <div>QR Generator</div>
+          <div style="font-size:11px;font-weight:500;color:#64748b">कस्टमर QR स्टिकर व प्रिंट शीट</div>
+        </div>
+      </button>
+
+      <a href="/" target="_blank" style="display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;font-size:14px;font-weight:700;color:#0284c7;margin-bottom:10px;text-decoration:none">
+        <span style="font-size:22px">🏠</span>
+        <div>
+          <div>Customer View (Water Storefront)</div>
+          <div style="font-size:11px;font-weight:500;color:#0284c7">ग्राहक पोर्टल लाइव देखें</div>
+        </div>
+      </a>
+
+      <button onclick="logoutAdmin();closeModal('mobileMoreModal')" style="display:flex;align-items:center;gap:12px;width:100%;padding:13px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;font-size:14px;font-weight:700;color:#dc2626;cursor:pointer;text-align:left">
+        <span style="font-size:22px">🚪</span>
+        <div>
+          <div>Logout Admin</div>
+          <div style="font-size:11px;font-weight:500;color:#ef4444">सुरक्षित बाहर निकलें</div>
+        </div>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openMobileMenu() {
+  document.getElementById('mobileMoreModal').classList.add('show');
+}
+</script>
 </body>
 </html>
