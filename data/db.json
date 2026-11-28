@@ -26,7 +26,7 @@
     "pulses_per_litre": 450,
     "flow_stall_seconds": 6,
     "default_card_litres": 1,
-    "tank_current_litres": 948.8,
+    "tank_current_litres": 919.4,
     "wait_button_seconds": 30,
     "order_expiry_seconds": 45,
     "tank_alert_threshold": 100,
@@ -68,6 +68,54 @@
     }
   ],
   "transactions": [
+    {
+      "id": "RZ_62H4z5WC",
+      "note": "Razorpay UPI: ₹5 -> 5L Water",
+      "type": "DISPENSE",
+      "card_uid": "RAZORPAY_QR",
+      "created_at": "28/11/2026, 2:17:18 am",
+      "customer_id": "RAZORPAY_BUYER",
+      "payment_ref": "pay_U5KwFD62H4z5WC",
+      "amount_paise": 500,
+      "customer_name": "Razorpay User",
+      "customer_phone": ""
+    },
+    {
+      "id": "RZ_gohwRcKS",
+      "note": "Razorpay UPI: ₹5 -> 5L Water",
+      "type": "DISPENSE",
+      "card_uid": "RAZORPAY_QR",
+      "created_at": "28/11/2026, 2:16:17 am",
+      "customer_id": "RAZORPAY_BUYER",
+      "payment_ref": "pay_U5KvAOgohwRcKS",
+      "amount_paise": 500,
+      "customer_name": "Razorpay User",
+      "customer_phone": ""
+    },
+    {
+      "id": "RZ_CgX3y7PW",
+      "note": "Razorpay UPI: ₹1 -> 1L Water",
+      "type": "DISPENSE",
+      "card_uid": "RAZORPAY_QR",
+      "created_at": "28/11/2026, 1:32:52 am",
+      "customer_id": "RAZORPAY_BUYER",
+      "payment_ref": "pay_U5KBIxCgX3y7PW",
+      "amount_paise": 100,
+      "customer_name": "Razorpay User",
+      "customer_phone": ""
+    },
+    {
+      "id": "RZ_0aKyMyUn",
+      "note": "Razorpay UPI: ₹5 -> 5L Water",
+      "type": "DISPENSE",
+      "card_uid": "RAZORPAY_QR",
+      "created_at": "28/11/2026, 1:31:52 am",
+      "customer_id": "RAZORPAY_BUYER",
+      "payment_ref": "pay_U5KAFl0aKyMyUn",
+      "amount_paise": 500,
+      "customer_name": "Razorpay User",
+      "customer_phone": ""
+    },
     {
       "id": "DSP_CEB00086",
       "note": "5 Liter Dispensed",
@@ -790,6 +838,62 @@
       "customer_name": "Razorpay User",
       "customer_phone": "",
       "actual_dispensed_litres": 1.184444
+    },
+    {
+      "id": "RZ_0aKyMyUn",
+      "litres": 5,
+      "status": "completed",
+      "amount_rs": 5,
+      "created_at": "28/11/2026, 1:31:52 am",
+      "payment_id": "pay_U5KAFl0aKyMyUn",
+      "started_at": "28/11/2026, 1:32:16 am",
+      "completed_at": "28/11/2026, 1:32:30 am",
+      "created_at_ms": 1795809712887,
+      "customer_name": "Razorpay User",
+      "customer_phone": "",
+      "actual_dispensed_litres": 5.302222
+    },
+    {
+      "id": "RZ_CgX3y7PW",
+      "litres": 1,
+      "status": "completed",
+      "amount_rs": 1,
+      "created_at": "28/11/2026, 1:32:52 am",
+      "payment_id": "pay_U5KBIxCgX3y7PW",
+      "started_at": "28/11/2026, 1:32:54 am",
+      "completed_at": "28/11/2026, 1:33:07 am",
+      "created_at_ms": 1795809772526,
+      "customer_name": "Razorpay User",
+      "customer_phone": "",
+      "actual_dispensed_litres": 1.242222
+    },
+    {
+      "id": "RZ_gohwRcKS",
+      "litres": 5,
+      "status": "completed",
+      "amount_rs": 5,
+      "created_at": "28/11/2026, 2:16:17 am",
+      "payment_id": "pay_U5KvAOgohwRcKS",
+      "started_at": "28/11/2026, 2:16:42 am",
+      "completed_at": "28/11/2026, 2:16:58 am",
+      "created_at_ms": 1795812377515,
+      "customer_name": "Razorpay User",
+      "customer_phone": "",
+      "actual_dispensed_litres": 5.051111
+    },
+    {
+      "id": "RZ_62H4z5WC",
+      "litres": 5,
+      "status": "completed",
+      "amount_rs": 5,
+      "created_at": "28/11/2026, 2:17:18 am",
+      "payment_id": "pay_U5KwFD62H4z5WC",
+      "started_at": "28/11/2026, 2:17:20 am",
+      "completed_at": "28/11/2026, 2:17:30 am",
+      "created_at_ms": 1795812438951,
+      "customer_name": "Razorpay User",
+      "customer_phone": "",
+      "actual_dispensed_litres": 17.82444
     }
   ],
   "cashback_wallets": {

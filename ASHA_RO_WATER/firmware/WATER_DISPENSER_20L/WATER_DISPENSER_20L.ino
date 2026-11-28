@@ -68,6 +68,11 @@ float price10L              = 10.0;
 float price15L              = 15.0;
 float price20L              = 15.0;
 
+// ⚡ AUTO DISPENSE MODE (Bina Button Direct Paani)
+bool  autoModeEnabled       = false; // Default OFF (toggled via web or long-press balance button)
+float autoModeLitres        = 20.0;  // Default auto quantity (Litres)
+float autoModeAmountRs      = 15.0;  // Default auto deduction amount (Rs)
+
 bool isMachineInMaintenance = false;
 float tankWaterRemaining    = 1000.0;
 
@@ -88,7 +93,7 @@ float tankWaterRemaining    = 1000.0;
 // Push Buttons & LED Pins
 #define BTN_START_PIN  4    // Green Push Button (Start)
 #define BTN_CANCEL_PIN 16   // Red Push Button (Cancel / Emergency Stop)
-#define LED_START_PIN  25   // Green LED Indicator
+#define LED_START_PIN  2    // Onboard Blue LED Indicator
 
 #define BTN_1L_PIN     17   // 1 Litre Button
 #define BTN_2L_PIN     14   // 2 Litres Button (NEW)
@@ -96,7 +101,7 @@ float tankWaterRemaining    = 1000.0;
 #define BTN_10L_PIN    32   // 10 Litres Button
 #define BTN_15L_PIN    12   // 15 Litres Button (NEW)
 #define BTN_20L_PIN    33   // 20 Litres Button
-#define BTN_BAL_PIN    0    // Check Card Balance Enquiry Button (NEW)
+#define BTN_BAL_PIN    25   // Check Card Balance Enquiry Button (Pin D25)
 
 // Hardware Objects
 MFRC522 rfid(RFID_SS_PIN, RFID_RST_PIN);
@@ -124,6 +129,8 @@ bool checkPendingQROrders();
 void handleCardScanned(String uid, float preselectedLitres = 0.0);
 void handlePreSelection(float preselectedLitres);
 void handleBalanceEnquiry();
+void handleAutoModeConfigMenu();
+bool readCardClean(String &outUid);
 void syncCardsAndOfflineQueue();
 
 // Helper: Calculate price based on selected litres
@@ -135,6 +142,77 @@ float getQuantityCost(float litres) {
   if (litres == 15.0) return price15L;
   if (litres == 20.0) return price20L;
   return litres * pricePerLitreRs;
+}
+
+// =================================================================
+// ⚡ 100% BULLETPROOF RFID ENGINE (REQA + WUPA + FIFO Auto-Flush)
+// Har bar card pas aate hi instant read karega, kabhi lock nahi hoga!
+// =================================================================
+bool readCardClean(String &outUid) {
+  // 1. Hardware health sanity check: if SPI hung or chip glitch, recover fast
+  byte ver = rfid.PCD_ReadRegister(MFRC522::VersionReg);
+  if (ver == 0x00 || ver == 0xFF) {
+    rfid.PCD_Init();
+    rfid.PCD_SetAntennaGain(MFRC522::RxGain_max);
+    return false;
+  }
+
+  // 2. Clear residual FIFO bytes & command interrupts from previous attempts
+  rfid.PCD_WriteRegister(MFRC522::CommandReg, MFRC522::PCD_Idle);
+  rfid.PCD_WriteRegister(MFRC522::ComIrqReg, 0x7F);
+  rfid.PCD_WriteRegister(MFRC522::FIFOLevelReg, 0x80); // Flush FIFO
+
+  byte bufferATQA[2];
+  byte bufferSize = sizeof(bufferATQA);
+
+  // 3. Reset modulation registers
+  rfid.PCD_WriteRegister(MFRC522::TxModeReg, 0x00);
+  rfid.PCD_WriteRegister(MFRC522::RxModeReg, 0x00);
+  rfid.PCD_WriteRegister(MFRC522::ModWidthReg, 0x26);
+
+  // 4. Try standard REQA (PICC_CMD_REQA: detects fresh cards in IDLE state)
+  MFRC522::StatusCode status = rfid.PICC_RequestA(bufferATQA, &bufferSize);
+
+  // 5. If REQA fails, try WUPA (PICC_CMD_WUPA: wakes up cards in READY, HALT, or sleep state!)
+  if (status != MFRC522::STATUS_OK && status != MFRC522::STATUS_COLLISION) {
+    bufferSize = sizeof(bufferATQA);
+    status = rfid.PICC_WakeupA(bufferATQA, &bufferSize);
+  }
+
+  // 6. Card responded to either REQA or WUPA
+  if (status == MFRC522::STATUS_OK || status == MFRC522::STATUS_COLLISION) {
+    if (rfid.PICC_ReadCardSerial()) {
+      outUid = "";
+      for (byte i = 0; i < rfid.uid.size; i++) {
+        if (i > 0) outUid += " ";
+        if (rfid.uid.uidByte[i] < 0x10) outUid += "0";
+        outUid += String(rfid.uid.uidByte[i], HEX);
+      }
+      outUid.toUpperCase();
+
+      // Properly halt card & stop crypto
+      rfid.PICC_HaltA();
+      rfid.PCD_StopCrypto1();
+
+      // Quick 1ms RF field pulse to discharge passive card capacitor
+      // Prevents card staying stuck in HALT if held near reader!
+      rfid.PCD_AntennaOff();
+      delayMicroseconds(1000);
+      rfid.PCD_AntennaOn();
+      rfid.PCD_SetAntennaGain(MFRC522::RxGain_max);
+
+      return true;
+    } else {
+      // Collision or read glitch at edge of field: discharge card immediately
+      rfid.PCD_AntennaOff();
+      delay(15);
+      rfid.PCD_AntennaOn();
+      rfid.PCD_SetAntennaGain(MFRC522::RxGain_max);
+      return false;
+    }
+  }
+
+  return false;
 }
 
 // =================================================================
@@ -432,17 +510,8 @@ void handleBalanceEnquiry() {
       return;
     }
 
-    if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
-      String uid = "";
-      for (byte i = 0; i < rfid.uid.size; i++) {
-        if (i > 0) uid += " ";
-        if (rfid.uid.uidByte[i] < 0x10) uid += "0";
-        uid += String(rfid.uid.uidByte[i], HEX);
-      }
-      uid.toUpperCase();
-      rfid.PICC_HaltA();
-      rfid.PCD_StopCrypto1();
-
+    String uid = "";
+    if (readCardClean(uid)) {
       String uidClean = uid;
       uidClean.replace(" ", "");
 
@@ -494,6 +563,14 @@ void handleBalanceEnquiry() {
       display.display();
 
       delay(3800); // 3.8s peaceful display time
+
+      // 🔄 Fresh RFID reset to avoid RF antenna lockup
+      rfid.PCD_AntennaOff();
+      delay(50);
+      rfid.PCD_Init();
+      rfid.PCD_AntennaOn();
+      rfid.PCD_SetAntennaGain(rfid.RxGain_max);
+      lastScannedUID = "";
       return;
     }
     delay(10);
@@ -501,6 +578,12 @@ void handleBalanceEnquiry() {
 
   showScreen("TIME OUT", "Card Tap Nahi Hua", "Standby Mode", "");
   delay(1000);
+  rfid.PCD_AntennaOff();
+  delay(30);
+  rfid.PCD_Init();
+  rfid.PCD_AntennaOn();
+  rfid.PCD_SetAntennaGain(rfid.RxGain_max);
+  lastScannedUID = "";
 }
 
 // =================================================================
@@ -558,17 +641,8 @@ void handlePreSelection(float preselectedLitres) {
     if (digitalRead(BTN_20L_PIN) == LOW) { preselectedLitres = 20.0; cost = getQuantityCost(20.0); lStr = "20L"; startWait = millis(); beep(1, 50, 1800); delay(200); }
 
     // Card Sensed!
-    if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
-      String uid = "";
-      for (byte i = 0; i < rfid.uid.size; i++) {
-        if (i > 0) uid += " ";
-        if (rfid.uid.uidByte[i] < 0x10) uid += "0";
-        uid += String(rfid.uid.uidByte[i], HEX);
-      }
-      uid.toUpperCase();
-      rfid.PICC_HaltA();
-      rfid.PCD_StopCrypto1();
-
+    String uid = "";
+    if (readCardClean(uid)) {
       handleCardScanned(uid, preselectedLitres);
       return;
     }
@@ -775,6 +849,20 @@ bool checkPendingQROrders() {
         if (pt["20"].is<float>()) price20L = pt["20"].as<float>();
       }
 
+      // Sync Auto Mode from Cloud if configured
+      if (doc["auto_mode"].is<bool>()) {
+        autoModeEnabled = doc["auto_mode"].as<bool>();
+        prefs.putBool("auto_mode", autoModeEnabled);
+      }
+      if (doc["auto_litres"].is<float>()) {
+        autoModeLitres = doc["auto_litres"].as<float>();
+        prefs.putFloat("auto_l", autoModeLitres);
+      }
+      if (doc["auto_amount_rs"].is<float>()) {
+        autoModeAmountRs = doc["auto_amount_rs"].as<float>();
+        prefs.putFloat("auto_rs", autoModeAmountRs);
+      }
+
       if (doc["has_order"] == true && !isMachineInMaintenance) {
         String orderId    = doc["order_id"].as<String>();
         float orderLitres = doc["litres"].as<float>();
@@ -806,21 +894,29 @@ bool checkPendingQROrders() {
           return false;
         }
 
-        if (!waitForStartButton(buyerName, orderLitres)) {
-          HTTPClient cancelHttp;
-          beginHttp(cancelHttp, "/api/machine/complete");
-          cancelHttp.addHeader("Content-Type", "application/json");
+        if (!autoModeEnabled) {
+          // Manual Mode: Wait for Green START button
+          if (!waitForStartButton(buyerName, orderLitres)) {
+            HTTPClient cancelHttp;
+            beginHttp(cancelHttp, "/api/machine/complete");
+            cancelHttp.addHeader("Content-Type", "application/json");
 
-          JsonDocument cancelDoc;
-          cancelDoc["order_id"] = orderId;
-          cancelDoc["actual_litres"] = 0.0;
-          cancelDoc["status"] = "cancelled_user";
-          cancelDoc["reason"] = "Jar Nahi Lagaya / Cancelled";
-          String cancelPayload;
-          serializeJson(cancelDoc, cancelPayload);
-          cancelHttp.POST(cancelPayload);
-          cancelHttp.end();
-          return false;
+            JsonDocument cancelDoc;
+            cancelDoc["order_id"] = orderId;
+            cancelDoc["actual_litres"] = 0.0;
+            cancelDoc["status"] = "cancelled_user";
+            cancelDoc["reason"] = "Jar Nahi Lagaya / Cancelled";
+            String cancelPayload;
+            serializeJson(cancelDoc, cancelPayload);
+            cancelHttp.POST(cancelPayload);
+            cancelHttp.end();
+            return false;
+          }
+        } else {
+          // ⚡ AUTO MODE: Direct paani bina kisi button ke!
+          showScreen("AUTO DISPENSE", buyerName, "Amount: Rs." + String(amtRs, 1), String(orderLitres, 1) + "L Paani Chalu..");
+          beep(2, 60, 1800);
+          delay(800);
         }
 
         float dispensed = dispenseWater(buyerName, orderLitres);
@@ -840,7 +936,7 @@ bool checkPendingQROrders() {
 
         // 🛡️ Full Post-QR RFID Reset & Antenna Power-Cycle
         rfid.PCD_AntennaOff();
-        delay(60);
+        delay(25);
         rfid.PCD_Init();
         rfid.PCD_AntennaOn();
         rfid.PCD_SetAntennaGain(MFRC522::RxGain_max);
@@ -849,7 +945,11 @@ bool checkPendingQROrders() {
         isDispensing = false;
         lastOledRefresh = millis();
         String netStatus = (WiFi.status() == WL_CONNECTED) ? ("WiFi: " + WiFi.SSID().substring(0, 12)) : "Offline Ready";
-        showScreen("ASHA RO WATER", netStatus, "Scan QR / Tap Card", "1L|2L|5L|10L|15L|20L");
+        if (autoModeEnabled) {
+          showScreen("ASHA RO WATER", netStatus, "⚡ AUTO: " + String((int)autoModeLitres) + "L (Rs." + String((int)autoModeAmountRs) + ")", "Scan QR / Tap Card");
+        } else {
+          showScreen("ASHA RO WATER", netStatus, "Scan QR / Tap Card", "1L|2L|5L|10L|15L|20L");
+        }
         beep(1, 60, 1800);
 
         return true;
@@ -980,24 +1080,48 @@ void handleCardScanned(String uid, float preselectedLitres) {
   }
 
   float litresToGive = preselectedLitres;
-  if (litresToGive <= 0.0) {
-    litresToGive = selectCardQuantity(custName, effectiveBal);
-    if (litresToGive <= 0.0) {
+  float costRs = 0.0;
+
+  if (autoModeEnabled && preselectedLitres <= 0.0) {
+    // ⚡ AUTO DISPENSE MODE: Bina kisi button dabaye seedhe set paani aur amount!
+    litresToGive = autoModeLitres;
+    costRs = (autoModeAmountRs > 0.0) ? autoModeAmountRs : getQuantityCost(autoModeLitres);
+
+    if (effectiveBal < costRs) {
+      beep(3, 80, 900); // 3 titik sounds
+      showScreen("BALANCE KAM HAI!", custName, "Bal: Rs." + String(effectiveBal, 1), "Chahiye: Rs." + String(costRs, 1));
+      delay(2200);
       return;
     }
-  }
 
-  float costRs = getQuantityCost(litresToGive);
+    // Direct approve without waiting for button!
+    showScreen("AUTO DISPENSE", custName, "Bal: Rs." + String(effectiveBal - costRs, 1), String(litresToGive, 0) + "L Paani Chalu..");
+    beep(2, 60, 1800);
+    delay(600);
+  } else {
+    // Manual Mode: Select quantity button, then wait for Green Start button!
+    if (litresToGive <= 0.0) {
+      litresToGive = selectCardQuantity(custName, effectiveBal);
+      if (litresToGive <= 0.0) {
+        return;
+      }
+    }
 
-  if (effectiveBal < costRs) {
-    beep(3, 80, 900); // 3 titik sounds
-    showScreen("BALANCE KAM HAI!", custName, "Bal: Rs." + String(effectiveBal, 1), "Chahiye: Rs." + String(costRs, 1));
-    delay(2200);
-    return;
-  }
+    costRs = getQuantityCost(litresToGive);
 
-  if (!waitForStartButton(custName, litresToGive)) {
-    return;
+    if (effectiveBal < costRs) {
+      beep(3, 80, 900); // 3 titik sounds
+      showScreen("BALANCE KAM HAI!", custName, "Bal: Rs." + String(effectiveBal, 1), "Chahiye: Rs." + String(costRs, 1));
+      delay(2200);
+      return;
+    }
+
+    if (!waitForStartButton(custName, litresToGive)) {
+      return;
+    }
+
+    showScreen("APPROVED", custName, "Bal: Rs." + String(effectiveBal - costRs, 1), String(litresToGive, 0) + "L Paani Chalu");
+    delay(600);
   }
 
   float afterBal = effectiveBal - costRs;
@@ -1025,9 +1149,6 @@ void handleCardScanned(String uid, float preselectedLitres) {
 
   prefs.putFloat(("b_" + uidClean).c_str(), afterBal);
 
-  showScreen("APPROVED", custName, "Bal: Rs." + String(afterBal, 1), String(litresToGive, 0) + "L Paani Chalu");
-  delay(600);
-
   float actualDispensed = dispenseWater(custName, litresToGive);
 
   if (actualDispensed < 0.2) {
@@ -1052,10 +1173,9 @@ void handleCardScanned(String uid, float preselectedLitres) {
     delay(2500);
   }
 
-  // 🛡️ FULL POST-DISPENSE RFID RESET & ANTENNA POWER-CYCLE
-  // Turns off RF field for 60ms to completely discharge and wake passive card from HALT state!
+  // 🛡️ FULL POST-DISPENSE RFID RECOVERY
   rfid.PCD_AntennaOff();
-  delay(60);
+  delay(25);
   rfid.PCD_Init();
   rfid.PCD_AntennaOn();
   rfid.PCD_SetAntennaGain(MFRC522::RxGain_max);
@@ -1068,7 +1188,11 @@ void handleCardScanned(String uid, float preselectedLitres) {
   // Instantly return OLED to Ready Screen
   lastOledRefresh = millis();
   String netStatus = (WiFi.status() == WL_CONNECTED) ? ("WiFi: " + WiFi.SSID().substring(0, 12)) : "Offline Ready";
-  showScreen("ASHA RO WATER", netStatus, "Scan QR / Tap Card", "1L|2L|5L|10L|15L|20L");
+  if (autoModeEnabled) {
+    showScreen("ASHA RO WATER", netStatus, "⚡ AUTO: " + String((int)autoModeLitres) + "L (Rs." + String((int)autoModeAmountRs) + ")", "Scan QR / Tap Card");
+  } else {
+    showScreen("ASHA RO WATER", netStatus, "Scan QR / Tap Card", "1L|2L|5L|10L|15L|20L");
+  }
   beep(1, 60, 1800);
 }
 
@@ -1133,6 +1257,20 @@ void syncCardsAndOfflineQueue() {
         if (pt["20"].is<float>()) { price20L = pt["20"].as<float>(); prefs.putFloat("p_20l", price20L); }
       }
 
+      // Sync Auto Mode from Cloud
+      if (syncDoc["auto_mode"].is<bool>()) {
+        autoModeEnabled = syncDoc["auto_mode"].as<bool>();
+        prefs.putBool("auto_mode", autoModeEnabled);
+      }
+      if (syncDoc["auto_litres"].is<float>()) {
+        autoModeLitres = syncDoc["auto_litres"].as<float>();
+        prefs.putFloat("auto_l", autoModeLitres);
+      }
+      if (syncDoc["auto_amount_rs"].is<float>()) {
+        autoModeAmountRs = syncDoc["auto_amount_rs"].as<float>();
+        prefs.putFloat("auto_rs", autoModeAmountRs);
+      }
+
       JsonArray cards = syncDoc["cards"].as<JsonArray>();
       for (JsonObject c : cards) {
         String cUid = c["uid"].as<String>();
@@ -1170,6 +1308,9 @@ void setup() {
   price10L = prefs.getFloat("p_10l", 10.0);
   price15L = prefs.getFloat("p_15l", 15.0);
   price20L = prefs.getFloat("p_20l", 15.0);
+  autoModeEnabled  = prefs.getBool("auto_mode", false);
+  autoModeLitres   = prefs.getFloat("auto_l", 20.0);
+  autoModeAmountRs = prefs.getFloat("auto_rs", 15.0);
 
   // 1. Relay & Buzzer
   pinMode(RELAY_PIN, OUTPUT);
@@ -1235,6 +1376,85 @@ void setup() {
 }
 
 // =================================================================
+// 🔘 HARDWARE AUTO MODE CONFIGURATION MENU
+// Long-press Balance Button (2 sec) toggles Auto Mode ON / OFF.
+// When ON: Press 1L..20L button to set auto litres, Green/Red to adjust Rs.
+// =================================================================
+void handleAutoModeConfigMenu() {
+  autoModeEnabled = !autoModeEnabled;
+  prefs.putBool("auto_mode", autoModeEnabled);
+
+  if (autoModeEnabled) {
+    beep(2, 100, 1800); // 2 high happy beeps
+  } else {
+    beep(1, 200, 700);  // 1 low beep
+  }
+
+  unsigned long menuStart = millis();
+  while (millis() - menuStart < 5000) { // 5-second interactive window
+    unsigned long rem = 5 - ((millis() - menuStart) / 1000);
+
+    display.clearDisplay();
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(4, 2);
+    display.println("AUTO DISPENSE SETUP");
+    display.drawFastHLine(0, 12, 128, SSD1306_WHITE);
+
+    display.setCursor(2, 16);
+    display.print("Status: ");
+    if (autoModeEnabled) {
+      display.println("CHALU (ON)");
+    } else {
+      display.println("BAND (OFF)");
+    }
+
+    display.setCursor(2, 30);
+    display.print("Set: ");
+    display.print((int)autoModeLitres);
+    display.print("L = Rs.");
+    display.print((int)autoModeAmountRs);
+    display.print(" (");
+    display.print(rem);
+    display.println("s)");
+
+    display.setCursor(2, 46);
+    display.println("1-20L=Badle | Lal=OK");
+    display.display();
+
+    // Check quantity buttons to adjust Auto Litres
+    if (digitalRead(BTN_1L_PIN) == LOW)  { autoModeLitres = 1.0;  autoModeAmountRs = price1L;  beep(1, 50, 1800); delay(200); menuStart = millis(); }
+    if (digitalRead(BTN_2L_PIN) == LOW)  { autoModeLitres = 2.0;  autoModeAmountRs = price2L;  beep(1, 50, 1800); delay(200); menuStart = millis(); }
+    if (digitalRead(BTN_5L_PIN) == LOW)  { autoModeLitres = 5.0;  autoModeAmountRs = price5L;  beep(1, 50, 1800); delay(200); menuStart = millis(); }
+    if (digitalRead(BTN_10L_PIN) == LOW) { autoModeLitres = 10.0; autoModeAmountRs = price10L; beep(1, 50, 1800); delay(200); menuStart = millis(); }
+    if (digitalRead(BTN_15L_PIN) == LOW) { autoModeLitres = 15.0; autoModeAmountRs = price15L; beep(1, 50, 1800); delay(200); menuStart = millis(); }
+    if (digitalRead(BTN_20L_PIN) == LOW) { autoModeLitres = 20.0; autoModeAmountRs = price20L; beep(1, 50, 1800); delay(200); menuStart = millis(); }
+
+    // Start Button: +1 Rs
+    if (digitalRead(BTN_START_PIN) == LOW) {
+      autoModeAmountRs += 1.0;
+      beep(1, 50, 2000);
+      delay(200);
+      menuStart = millis();
+    }
+
+    // Cancel Button: Save & Exit immediately
+    if (digitalRead(BTN_CANCEL_PIN) == LOW) {
+      break;
+    }
+
+    delay(20);
+  }
+
+  prefs.putFloat("auto_l", autoModeLitres);
+  prefs.putFloat("auto_rs", autoModeAmountRs);
+
+  showScreen("SETTING SAVED", autoModeEnabled ? "AUTO MODE: ON" : "AUTO MODE: OFF", String((int)autoModeLitres) + "L = Rs." + String((int)autoModeAmountRs), "Surakshit Save Hua");
+  beep(2, 80, 1600);
+  delay(1200);
+}
+
+// =================================================================
 // 🔄 LIGHTNING-FAST MAIN LOOP
 // =================================================================
 void loop() {
@@ -1251,9 +1471,8 @@ void loop() {
       lastQRPollTime = now;
       checkPendingQROrders();
     }
-    if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
-      rfid.PICC_HaltA();
-      rfid.PCD_StopCrypto1();
+    String mUid = "";
+    if (readCardClean(mUid)) {
       beep(3, 150, 700);
       showScreen("MACHINE BAND HAI", "Maintenance Chalu Hai", "Card Tap Na Karein", "Thodi Der Me Chalu");
       delay(2000);
@@ -1262,37 +1481,42 @@ void loop() {
     return;
   }
 
-  // ⚡ 1. RFID SENSING (Clean Detection with Zero Lockup)
-  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
-    String uid = "";
-    for (byte i = 0; i < rfid.uid.size; i++) {
-      if (i > 0) uid += " ";
-      if (rfid.uid.uidByte[i] < 0x10) uid += "0";
-      uid += String(rfid.uid.uidByte[i], HEX);
-    }
-    uid.toUpperCase();
-
-    rfid.PICC_HaltA();
-    rfid.PCD_StopCrypto1();
-
+  // ⚡ 1. RFID SENSING (Clean 100% Detection with REQA + WUPA Fallback)
+  String scannedUid = "";
+  if (readCardClean(scannedUid)) {
     unsigned long now = millis();
-    if (uid != lastScannedUID || (now - lastScanTime) > 600) {
-      lastScannedUID = uid;
+    if (scannedUid != lastScannedUID || (now - lastScanTime) > 1000) {
+      lastScannedUID = scannedUid;
       lastScanTime = now;
-      handleCardScanned(uid);
+      handleCardScanned(scannedUid);
     }
-
-    // 🛡️ Instant Hardware Refresh: clears FIFO/errors so rapid taps NEVER freeze!
-    rfid.PCD_Init();
-    rfid.PCD_SetAntennaGain(MFRC522::RxGain_max);
     return;
+  } else {
+    // When no card is present for 400ms, reset lastScannedUID so immediate re-tap works on 1st touch!
+    if (millis() - lastScanTime > 400) {
+      lastScannedUID = "";
+    }
   }
 
-  // 🔘 2. CARD BALANCE ENQUIRY BUTTON
+  // 🔘 2. CARD BALANCE ENQUIRY & AUTO MODE TOGGLE BUTTON (Pin D25)
+  // Short Press (<2s) = Balance Enquiry
+  // Long Press (>=2s)  = Toggle Auto Mode & Configure Litres/Rs
   if (digitalRead(BTN_BAL_PIN) == LOW) {
     delay(40);
     if (digitalRead(BTN_BAL_PIN) == LOW) {
-      handleBalanceEnquiry();
+      unsigned long pressStart = millis();
+      bool longPressed = false;
+      while (digitalRead(BTN_BAL_PIN) == LOW) {
+        if (millis() - pressStart >= 2000) {
+          longPressed = true;
+          handleAutoModeConfigMenu();
+          break;
+        }
+        delay(20);
+      }
+      if (!longPressed) {
+        handleBalanceEnquiry();
+      }
       return;
     }
   }
@@ -1326,7 +1550,11 @@ void loop() {
   if (now - lastOledRefresh >= 4000) {
     lastOledRefresh = now;
     String netStatus = (WiFi.status() == WL_CONNECTED) ? ("WiFi: " + WiFi.SSID().substring(0, 12)) : "Offline Ready";
-    showScreen("ASHA RO WATER", netStatus, "Scan QR / Tap Card", "1L|2L|5L|10L|15L|20L");
+    if (autoModeEnabled) {
+      showScreen("ASHA RO WATER", netStatus, "⚡ AUTO: " + String((int)autoModeLitres) + "L (Rs." + String((int)autoModeAmountRs) + ")", "Scan QR / Tap Card");
+    } else {
+      showScreen("ASHA RO WATER", netStatus, "Scan QR / Tap Card", "1L|2L|5L|10L|15L|20L");
+    }
   }
 
   delay(5);

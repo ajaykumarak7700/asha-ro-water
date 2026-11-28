@@ -1534,7 +1534,10 @@ app.get('/api/machine/pending', (req, res) => {
       machine_status: db.settings?.machine_status || 'active',
       tank_current_litres: tankCur,
       tank_capacity_litres: tankCap,
-      price_tiers: tiers
+      price_tiers: tiers,
+      auto_mode: db.settings?.auto_mode || false,
+      auto_litres: parseFloat(db.settings?.auto_litres || 20.0),
+      auto_amount_rs: parseFloat(db.settings?.auto_amount_rs !== undefined ? db.settings.auto_amount_rs : 15.0)
     });
   }
 
@@ -1546,7 +1549,10 @@ app.get('/api/machine/pending', (req, res) => {
     machine_status: db.settings?.machine_status || 'active',
     tank_current_litres: tankCur,
     tank_capacity_litres: tankCap,
-    price_tiers: tiers
+    price_tiers: tiers,
+    auto_mode: db.settings?.auto_mode || false,
+    auto_litres: parseFloat(db.settings?.auto_litres || 20.0),
+    auto_amount_rs: parseFloat(db.settings?.auto_amount_rs !== undefined ? db.settings.auto_amount_rs : 15.0)
   });
 });
 
@@ -1934,6 +1940,9 @@ app.get('/api/machine/sync-cards', async (req, res) => {
     order_expiry_seconds: parseInt(db.settings.order_expiry_seconds || 90, 10),
     pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
     multi_quantity_enabled: db.settings.multi_quantity_enabled !== false,
+    auto_mode: db.settings?.auto_mode || false,
+    auto_litres: parseFloat(db.settings?.auto_litres || 20.0),
+    auto_amount_rs: parseFloat(db.settings?.auto_amount_rs !== undefined ? db.settings.auto_amount_rs : 15.0),
     price_tiers: getPriceTiers(db),
     cards: cards
   });
@@ -2021,6 +2030,9 @@ app.get('/api/settings', (req, res) => {
     flow_stall_seconds: (db.settings && db.settings.flow_stall_seconds) ? db.settings.flow_stall_seconds : 6,
     pulses_per_litre: (db.settings && db.settings.pulses_per_litre) ? db.settings.pulses_per_litre : 450,
     auto_refund_upi: (db.settings && db.settings.auto_refund_upi !== undefined) ? db.settings.auto_refund_upi : true,
+    auto_mode: db.settings?.auto_mode || false,
+    auto_litres: parseFloat(db.settings?.auto_litres || 20.0),
+    auto_amount_rs: parseFloat(db.settings?.auto_amount_rs !== undefined ? db.settings.auto_amount_rs : 15.0),
     cashback_enabled: db.settings.cashback_enabled !== false,
     cashback_litres: parseFloat(db.settings.cashback_litres || 20),
     cashback_rs: parseFloat(db.settings.cashback_rs !== undefined ? db.settings.cashback_rs : 1.0),
@@ -2037,6 +2049,9 @@ app.get('/api/settings', (req, res) => {
 
 app.post('/api/settings', (req, res) => {
   const {
+    auto_mode,
+    auto_litres,
+    auto_amount_rs,
     cashback_enabled,
     cashback_litres,
     cashback_rs,
@@ -2125,6 +2140,17 @@ app.post('/api/settings', (req, res) => {
   if (auto_refund_upi !== undefined) {
     db.settings.auto_refund_upi = (auto_refund_upi === true || auto_refund_upi === 'true');
   }
+  if (auto_mode !== undefined) {
+    db.settings.auto_mode = (auto_mode === true || auto_mode === 'true');
+  }
+  if (auto_litres !== undefined) {
+    const aL = parseFloat(auto_litres);
+    if (!isNaN(aL) && aL > 0) db.settings.auto_litres = aL;
+  }
+  if (auto_amount_rs !== undefined) {
+    const aRs = parseFloat(auto_amount_rs);
+    if (!isNaN(aRs) && aRs >= 0) db.settings.auto_amount_rs = aRs;
+  }
   if (razorpay_key_id && razorpay_key_id.trim()) {
     db.settings.razorpay_key_id = razorpay_key_id.trim();
   }
@@ -2152,6 +2178,9 @@ app.post('/api/settings', (req, res) => {
     flow_stall_seconds: db.settings.flow_stall_seconds || 6,
     pulses_per_litre: parseFloat(db.settings.pulses_per_litre || 450.0),
     auto_refund_upi: db.settings.auto_refund_upi !== false,
+    auto_mode: db.settings.auto_mode || false,
+    auto_litres: db.settings.auto_litres || 20.0,
+    auto_amount_rs: db.settings.auto_amount_rs !== undefined ? db.settings.auto_amount_rs : 15.0,
     razorpay_key_id: db.settings.razorpay_key_id || RAZORPAY_KEY_ID
   });
 });
